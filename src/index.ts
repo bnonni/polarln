@@ -1,3 +1,7 @@
+export {getNodeCredentials} from './polar_credentials/index.js';
+export type {GetNodeCredentialsArgs} from './polar_credentials/index.js';
+export type {GetNodeCredentialsResult} from './polar_credentials/index.js';
+export type {GrpcCredentials} from './polar_credentials/index.js';
 export {listTools} from './polar_bridge/index.js';
 export type {PolarTool} from './polar_bridge/index.js';
 export {polarBridge} from './polar_bridge/index.js';

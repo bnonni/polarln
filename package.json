@@ -30,7 +30,8 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "NOTICE"
   ],
   "type": "module",
   "main": "./dist/index.js",
