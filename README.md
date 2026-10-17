@@ -1,6 +1,6 @@
 # polarln
 
-TypeScript client methods for [Polar Lightning](https://lightningpolar.com/). Use them to control Polar regtest networks from scripts and tests. Use `getNodeCredentials` to connect [`lightning`](https://github.com/alexbosworth/lightning), [`tapass`](https://github.com/bnonni/tapass), and [`litterm`](https://github.com/bnonni/litterm) to Polar nodes.
+TypeScript client methods for [Polar Lightning](https://lightningpolar.com/). Use them, or the `polarln` command, to control Polar regtest networks from scripts, tests, and a shell. Use `getNodeCredentials` to connect [`lightning`](https://github.com/alexbosworth/lightning), [`tapass`](https://github.com/bnonni/tapass), and [`litterm`](https://github.com/bnonni/litterm) to Polar nodes.
 
 polarln sends requests to the HTTP bridge of the Polar v4 desktop app. It does not start Docker containers itself.
 
@@ -46,6 +46,29 @@ await mineBlocks({blocks: 6, networkId: 4, polar});
 | litd | `litd`, `lnd`, and `tapd` |
 
 Each value is `{cert, macaroon, socket}` with base64 files and a `localhost:<port>` socket. The node must be started. Other implementations reject with `400`.
+
+## CLI
+
+The `polarln` command runs each Polar bridge tool from a shell. Each tool is a command, and each tool argument is a flag. Install it with `npm install -g polarln`, or run it with `npx polarln`:
+
+```sh
+polarln list-networks
+polarln open-channel --network-id 4 --from-node alice --to-node bob --sats 250000
+polarln mine-blocks --network-id 4 --blocks 6
+polarln get-node-credentials --network-id 4 --node-name bob
+```
+
+The bridge runs each tool in the Polar app, so the Polar app shows the change.
+
+- Run `polarln --help` to see all commands. The command list comes from the running Polar app, so a new Polar tool is also a new command.
+- Run `polarln <command> --help` to see the flags of a command.
+- A boolean flag has no value: `--is-private`. Use `--no-auto-fund` for false.
+- An array flag takes JSON: `--nodes '[{"implementation": "litd", "count": 2}]'`.
+- Use `--url` to set a different bridge URL.
+
+The result goes to stdout as JSON. An error goes to stderr as one JSON line: `[code, message, details]`. The exit code is 0 for success, 1 for a failed command, and 2 for a usage error.
+
+The usage errors are `UnknownCommand`, `ExpectedCommandBeforeFlags`, `InvalidFlags`, `MissingRequiredFlags`, `ExpectedNumberForFlag`, `ExpectedJsonForFlag`, and `ExpectedAllowedValueForFlag`.
 
 ## Methods
 
