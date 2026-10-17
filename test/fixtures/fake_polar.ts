@@ -7,6 +7,8 @@ type FakePolarArgs = {
   body?: unknown;
   /** Error to Throw From fetch */
   error?: Error;
+  /** Response for Each Request (replaces body and status) */
+  respond?: (request: FakeRequest) => {body?: unknown; status?: number};
   /** Response Status (default: 200) */
   status?: number;
 };
@@ -19,18 +21,22 @@ export const fakePolar = (args: FakePolarArgs = {}) => {
     const body =
       typeof init?.body === 'string' ? JSON.parse(init.body) : undefined;
 
-    requests.push({body, method: init?.method, url});
+    const request = {body, method: init?.method, url};
+
+    requests.push(request);
 
     if (!!args.error) {
       throw args.error;
     }
 
-    const text =
-      typeof args.body === 'string'
-        ? args.body
-        : JSON.stringify(args.body ?? {});
+    const response = args.respond?.(request) ?? args;
 
-    return new Response(text, {status: args.status ?? 200});
+    const text =
+      typeof response.body === 'string'
+        ? response.body
+        : JSON.stringify(response.body ?? {});
+
+    return new Response(text, {status: response.status ?? 200});
   };
 
   const polar: Polar = {
