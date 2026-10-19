@@ -1,5 +1,7 @@
 polarln includes types ported from Polar (https://github.com/jamaljsr/polar).
 These types are in src/typescript and src/polar_methods.
+src/polar_docker includes the Polar v4.0.0 network, node, compose file,
+startup, and network tool logic for bitcoind and LND nodes.
 scripts/headless_spike.ts includes the Polar v4.0.0 compose templates
 and node commands.
 Polar uses the MIT License:
