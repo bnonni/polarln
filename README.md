@@ -60,6 +60,12 @@ polarln get-node-credentials --network-id 4 --node-name bob
 
 The bridge runs each tool in the Polar app, so the Polar app shows the change.
 
+A change that you make directly on a node (for example with `lncli` or `bitcoin-cli`) does not always show in the Polar app:
+
+- New blocks and on-chain balances do not show. To refresh the block height, the balances, and the channel counts, run `polarln mine-blocks --network-id 4 --blocks 1`. This command mines 1 block.
+- New and closed channels show. But Polar syncs the chart one time per 5 seconds at most. Thus, if you mine less than 5 seconds after a direct open or close, the chart can keep a dashed line.
+- Channel balances after a direct payment do not show until the next chart sync. The `open-channel`, `close-channel`, and `pay-invoice` commands sync the chart.
+
 - Run `polarln --help` to see all commands. The command list comes from the running Polar app, so a new Polar tool is also a new command.
 - Run `polarln <command> --help` to see the flags of a command.
 - A boolean flag has no value: `--is-private`. Use `--no-auto-fund` for false.
