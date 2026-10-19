@@ -11,14 +11,22 @@ import type {AuthenticatedLnd} from '../src/lnd_grpc/index.js';
 import {waitFor} from '../src/polar_docker/wait_for.js';
 import {
   addNode,
+  closeChannel,
+  createInvoice,
   createNetwork,
   deleteNetwork,
+  depositFunds,
   getBitcoinWalletInfo,
   getBlockchainInfo,
   getNewBitcoinAddress,
   getNodeCredentials,
+  getNodeInfo,
+  getWalletBalance,
+  listChannels,
   listNetworks,
   mineBlocks,
+  openChannel,
+  payInvoice,
   polarDocker,
   removeNode,
   renameNode,
@@ -236,6 +244,101 @@ try {
   });
 
   log(`alice confirmed balance: ${aliceBalance}`);
+
+  const info = await getNodeInfo({networkId, nodeName: 'alice', polar});
+
+  check(info.info.pubkey === pubkey, 'get_node_info gives the alice key');
+
+  const balance = await getWalletBalance({networkId, nodeName: 'alice', polar});
+
+  log(`get_wallet_balance alice: ${balance.balance.confirmed}`);
+  check(balance.balance.confirmed === '50000000', 'alice has 0.5 BTC');
+
+  await depositFunds({networkId, nodeName: 'bob', polar, sats: 1_000_000});
+
+  const bobBalance = await getWalletBalance({
+    networkId,
+    nodeName: 'bob',
+    polar,
+  });
+
+  log(`deposit_funds bob: ${bobBalance.balance.confirmed}`);
+  check(bobBalance.balance.confirmed === '1000000', 'bob got the deposit');
+
+  const opened = await openChannel({
+    fromNode: 'alice',
+    networkId,
+    polar,
+    sats: 250_000,
+    toNode: 'bob',
+  });
+
+  log(`open_channel alice bob: ${opened.channelPoint}`);
+
+  // A closure does not get the narrowed type of networkId
+  const id = networkId;
+
+  const pay = async (fromNode: string, toNode: string, amount: number) => {
+    const {invoice} = await createInvoice({
+      amount,
+      networkId: id,
+      nodeName: toNode,
+      polar,
+    });
+
+    const paid = await payInvoice({fromNode, invoice, networkId: id, polar});
+
+    log(`pay_invoice ${fromNode} to ${toNode}: ${amount} sats`);
+
+    return paid;
+  };
+
+  const paid = await pay('alice', 'bob', 1000);
+
+  check(paid.preimage.length === 64, 'got the preimage');
+
+  const bobChannels = await waitFor({
+    check: async () => {
+      const list = await listChannels({networkId: id, nodeName: 'bob', polar});
+
+      if (list.channels[0]?.localBalance !== '1000') {
+        throw new Error('bob does not show the payment');
+      }
+
+      return list.channels;
+    },
+    timeout: 10_000,
+  });
+
+  log(`list_channels bob: ${JSON.stringify(bobChannels)}`);
+  check(bobChannels[0].pubkey === pubkey, 'bob sees the channel to alice');
+  check(bobChannels[0].status === 'Open', 'the channel is open');
+
+  const privateChannel = await openChannel({
+    autoFund: false,
+    fromNode: 'bob',
+    isPrivate: true,
+    networkId,
+    polar,
+    sats: 100_000,
+    toNode: 'zed',
+  });
+
+  log(`open_channel bob zed private: ${privateChannel.channelPoint}`);
+
+  await pay('alice', 'zed', 500);
+
+  await closeChannel({
+    channelPoint: opened.channelPoint,
+    networkId,
+    nodeName: 'alice',
+    polar,
+  });
+
+  const closed = await listChannels({networkId, nodeName: 'alice', polar});
+
+  log(`close_channel alice: ${closed.message}`);
+  check(!closed.channels.length, 'alice has no channels');
 
   const mode = await setAutoMineMode({mode: 30, networkId, polar});
 

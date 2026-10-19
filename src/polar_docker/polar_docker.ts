@@ -23,6 +23,8 @@ export type PolarDockerArgs = {
     update_node_command, and set_lightning_backend
   - Bitcoin tools: mine_blocks, get_blockchain_info, get_bitcoin_wallet_info,
     send_bitcoin, get_new_bitcoin_address, and set_auto_mine_mode
+  - Lightning tools: open_channel, close_channel, list_channels, get_node_info,
+    get_wallet_balance, deposit_funds, create_invoice, and pay_invoice
 
   {
     [dataDir]: <Data Directory Path String>

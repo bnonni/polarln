@@ -2,8 +2,10 @@
 
 import type {BitcoinNode} from '../../typescript/index.js';
 import type {LightningNode} from '../../typescript/index.js';
+import type {LndNode} from '../../typescript/index.js';
 import type {Network} from '../../typescript/index.js';
 import type {PolarNode} from '../../typescript/index.js';
+import {validateDockerImplementation} from './validate.js';
 
 type Args = {
   network: Network;
@@ -97,4 +99,25 @@ export const findNode = ({network, nodeName}: Args): PolarNode => {
   }
 
   return node;
+};
+
+/** Get an LND node by name
+
+  {
+    network: <Network Object>
+    nodeName: <Node Name String>
+  }
+
+  @throws
+  <Error>
+
+  @returns
+  <LND Node Object>
+*/
+export const findLndNode = ({network, nodeName}: Args): LndNode => {
+  const node = findLightningNode({network, nodeName});
+
+  validateDockerImplementation(node.implementation);
+
+  return node as LndNode;
 };
