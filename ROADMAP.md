@@ -13,7 +13,29 @@ This file shows the planned work for polarln. The order can change.
 
 ## Next
 
-No item now. The next item comes from the backlog.
+### Headless backend (no Polar app)
+
+Goal: the SDK and the CLI start and control regtest networks without the Polar desktop app. This was the first goal of polarln.
+
+Design (proposed): one SDK with two backends. `polarBridge({url})` sends the tool calls to the Polar app. A new `polarDocker({dataDir})` runs the same `execute(tool, args)` on Docker, so the 48 methods do not change. The data folder is `~/.polarln`. The nodes use the Polar Docker images and the Polar v4.0.0 compose templates.
+
+Spike (2026-10-19, done): `scripts/headless_spike.ts` starts 1 bitcoind node and 2 LND nodes. Then it mines, opens 1 channel, and pays 1 invoice. Run `bun scripts/headless_spike.ts up`, then `bun scripts/headless_spike.ts down`.
+
+Spike results (Bitcoin Core v30.0, LND v0.20.0-beta):
+
+1. A full run takes about 9 s, from no containers to a paid invoice. The run passes under bun 1.3.11 and under Node 24.
+2. `@lightningpolar/lnd-api` 0.20.0-beta works under bun and under Node.
+3. `bitcoin-core` 5.0.0 (the latest version) depends on the deprecated `request` package and on `bunyan`. The spike uses a `fetch` JSON-RPC client for bitcoind, with no package.
+4. A JSON compose file is valid YAML, so `docker compose` reads it. The spike does not use `js-yaml`, `docker-compose`, or `dockerode`.
+5. LND returns `FAILURE_REASON_INSUFFICIENT_BALANCE` until the `channel_ready` exchange ends, also if the sender shows the channel as active. The spike waits until both nodes show the channel as active. Then it tries the payment again for a maximum of 30 s.
+6. LND sends the `SUCCEEDED` payment status before the commitment update ends on the receiver. The receiver balance changes after that.
+7. The container names are `polarln-n<id>-<name>`. Each port is the first free port at or above the Polar base port. The spike ran next to 2 started Polar networks with no conflict.
+
+Next phases:
+
+1. MVP, 2-3 weeks: `polarDocker` with bitcoind and LND, a network file in `~/.polarln`, and a backend flag for the CLI. In headless mode, the CLI reads a bundled tool schema, not the live schema.
+2. tapd and litd, 1-2 weeks.
+3. Core Lightning, Eclair, and zip import and export, 1-2 weeks.
 
 ## Backlog
 
