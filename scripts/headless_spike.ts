@@ -9,9 +9,11 @@ import {homedir, userInfo} from 'node:os';
 import {join} from 'node:path';
 import {promisify} from 'node:util';
 
-import * as LND from '@lightningpolar/lnd-api';
+import {authenticatedLndGrpc} from '../src/lnd_grpc/index.js';
 
 const run = promisify(execFile);
+
+type Payment = {failureReason: string; paymentHash: string; status: string};
 
 // Polar v4.0.0 values: src/utils/constants.ts and src/lib/docker
 const bitcoinImage = 'polarlightning/bitcoind:30.0';
@@ -248,11 +250,11 @@ const lndClient = async (name: string, ports: Ports) => {
     `${name} credentials`,
   );
 
-  return LND.LndClient.create({
-    socket: `127.0.0.1:${ports.lnd[name].grpc}`,
+  return authenticatedLndGrpc({
+    socket: `localhost:${ports.lnd[name].grpc}`,
     cert: (await readFile(certPath)).toString('hex'),
     macaroon: (await readFile(macaroonPath)).toString('hex'),
-  });
+  }).lnd;
 };
 
 const up = async () => {
@@ -357,14 +359,14 @@ const up = async () => {
     memo: 'polarln headless spike',
   });
   const pay = () =>
-    new Promise<LND.Payment>((resolve, reject) => {
+    new Promise<Payment>((resolve, reject) => {
       const stream = alice.router.sendPaymentV2({
         paymentRequest: invoice.paymentRequest,
         timeoutSeconds: 60,
         feeLimitSat: 100,
       });
 
-      stream.on('data', (p: LND.Payment) => {
+      stream.on('data', (p: Payment) => {
         if (p.status === 'SUCCEEDED') resolve(p);
         if (p.status === 'FAILED') reject(new Error(p.failureReason));
       });
