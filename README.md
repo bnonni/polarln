@@ -58,13 +58,7 @@ polarln mine-blocks --network-id 4 --blocks 6
 polarln get-node-credentials --network-id 4 --node-name bob
 ```
 
-The bridge runs each tool in the Polar app, so the Polar app shows the change.
-
-A change that you make directly on a node (for example with `lncli` or `bitcoin-cli`) does not always show in the Polar app:
-
-- New blocks and on-chain balances do not show. To refresh the block height, the balances, and the channel counts, run `polarln mine-blocks --network-id 4 --blocks 1`. This command mines 1 block.
-- New and closed channels show. But Polar syncs the chart one time per 5 seconds at most. Thus, if you mine less than 5 seconds after a direct open or close, the chart can keep a dashed line.
-- Channel balances after a direct payment do not show until the next chart sync. The `open-channel`, `close-channel`, and `pay-invoice` commands sync the chart.
+The bridge runs each tool in the Polar app, so the Polar app shows the change. One exception: after `add-node`, the chart shows no channel lines until the next chart sync.
 
 - Run `polarln --help` to see all commands. The command list comes from the running Polar app, so a new Polar tool is also a new command.
 - Run `polarln <command> --help` to see the flags of a command.
@@ -75,6 +69,15 @@ A change that you make directly on a node (for example with `lncli` or `bitcoin-
 The result goes to stdout as JSON. An error goes to stderr as one JSON line: `[code, message, details]`. The exit code is 0 for success, 1 for a failed command, and 2 for a usage error.
 
 The usage errors are `UnknownCommand`, `ExpectedCommandBeforeFlags`, `InvalidFlags`, `MissingRequiredFlags`, `ExpectedNumberForFlag`, `ExpectedJsonForFlag`, and `ExpectedAllowedValueForFlag`.
+
+### Changes outside polarln
+
+A change that you make directly on a node (for example with `lncli`, `bitcoin-cli`, or `tapcli`) does not always show in the Polar app:
+
+- New blocks, on-chain balances, and tapd assets do not show. To refresh them, run `polarln mine-blocks --network-id 4 --blocks 1`. This command mines 1 block.
+- Some read commands refresh the Polar app without a new block: `get-blockchain-info` refreshes the block height, and `get-tap-balances` refreshes the assets of a tapd node.
+- New and closed channels show. But Polar syncs the chart one time per 5 seconds at most. Thus, if you mine less than 5 seconds after a direct open or close, the chart can keep a dashed line.
+- Channel balances after a direct payment do not show until the next chart sync. The `open-channel`, `close-channel`, and `pay-invoice` commands sync the chart.
 
 ## Methods
 
