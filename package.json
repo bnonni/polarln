@@ -59,6 +59,7 @@
     "wipe": "rimraf node_modules"
   },
   "devDependencies": {
+    "@lightningpolar/lnd-api": "0.20.0-beta",
     "@types/node": "^22.20.5",
     "oxfmt": "^0.73.0",
     "oxlint": "^1.88.0",
