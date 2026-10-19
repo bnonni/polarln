@@ -68,8 +68,9 @@ The preview supports bitcoind and LND nodes, and these tools:
 - Network tools: `createNetwork`, `deleteNetwork`, `listNetworks`, `renameNetwork`, `startNetwork`, and `stopNetwork`.
 - Node tools: `addNode`, `getDefaultNodeCommand`, `listNodeVersions`, `removeNode`, `renameNode`, `restartNode`, `setLightningBackend`, `startNode`, `stopNode`, and `updateNodeCommand`.
 - Bitcoin tools: `getBitcoinWalletInfo`, `getBlockchainInfo`, `getNewBitcoinAddress`, `mineBlocks`, `sendBitcoin`, and `setAutoMineMode`.
+- Lightning tools: `closeChannel`, `createInvoice`, `depositFunds`, `getNodeInfo`, `getWalletBalance`, `listChannels`, `openChannel`, and `payInvoice`.
 
-The other tools reject with `501`. The CLI uses only the bridge.
+The tapd and litd tools, and the import and export tools, reject with `501`. The CLI uses only the bridge.
 
 Differences from the Polar app:
 
@@ -77,6 +78,9 @@ Differences from the Polar app:
 - The networks file is `networks/networks.json` in the data directory. The statuses are labels, such as `Started`, as in the bridge results.
 - `startNode`, `restartNode`, and `renameNode` return after the nodes are online. `addNode` and `setLightningBackend` also wait if the network is started. Polar returns before the nodes are online.
 - `stopNetwork` also removes the containers of removed and renamed nodes.
+- `depositFunds` returns after the LND wallet shows the coins as confirmed. Polar waits 1 s.
+- `openChannel` returns after the 2 nodes can use the channel for payments. Polar waits 1 s, and the first payment can fail.
+- `closeChannel` waits for the closing transaction, and rejects if lnd cannot close the channel. Polar does not wait for lnd, and does not reject.
 
 As in the Polar bridge, `setAutoMineMode` only saves the mode. It does not mine blocks.
 

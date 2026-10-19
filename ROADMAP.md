@@ -27,7 +27,7 @@ Spike results (Bitcoin Core v30.0, LND v0.20.0-beta):
 2. `@lightningpolar/lnd-api` 0.20.0-beta works under bun and under Node. But it pins `@grpc/grpc-js` 1.10.8, which has 5 audit advisories (3 high). The MVP uses an own transport (see "Next phases").
 3. `bitcoin-core` 5.0.0 (the latest version) depends on the deprecated `request` package and on `bunyan`. The spike uses a `fetch` JSON-RPC client for bitcoind, with no package.
 4. A JSON compose file is valid YAML, so `docker compose` reads it. The spike does not use `js-yaml`, `docker-compose`, or `dockerode`.
-5. LND returns `FAILURE_REASON_INSUFFICIENT_BALANCE` until the `channel_ready` exchange ends, also if the sender shows the channel as active. The spike waits until both nodes show the channel as active. Then it tries the payment again for a maximum of 30 s.
+5. LND returns `FAILURE_REASON_INSUFFICIENT_BALANCE` until the `channel_ready` exchange ends, also if the sender shows the channel as active. The spike waits until both nodes show the channel as active. Then it tries the payment again for a maximum of 30 s. Later measurement (MVP step 3): a payment works after the sender graph has the channel, about 1 s after the channel is active. After about 1.6 s, the graphs of the 2 nodes have the channel with the 2 policies. `open_channel` waits for this.
 6. LND sends the `SUCCEEDED` payment status before the commitment update ends on the receiver. The receiver balance changes after that.
 7. The container names are `polarln-n<id>-<name>`. Each port is the first free port at or above the Polar base port. The spike ran next to 2 started Polar networks with no conflict.
 8. Under Node, `@grpc/grpc-js` prints the `DEP0123` warning if the socket host is an IP address. The spike uses `localhost`, as `getNodeCredentials` does.
@@ -41,7 +41,7 @@ Next phases:
    3. The other tools for bitcoind and LND nodes. Port the Polar LND and bitcoind tool logic and the Polar `mappers.ts`, so that the results are the same as the bridge results.
       1. Done (2026-10-19): the 10 node tools: `add_node`, `remove_node`, `start_node`, `stop_node`, `restart_node`, `rename_node`, `list_node_versions`, `get_default_node_command`, `update_node_command`, and `set_lightning_backend`. Live test: each tool on a started network with 2 bitcoind nodes and 3 LND nodes. The test takes 47 s.
       2. Done (2026-10-19): the 6 bitcoin tools: `mine_blocks`, `get_blockchain_info`, `get_bitcoin_wallet_info`, `send_bitcoin`, `get_new_bitcoin_address`, and `set_auto_mine_mode`. In Polar, `set_auto_mine_mode` sets only the mode value in memory: the bridge tool does not start the mine timer and does not save the mode. `polarDocker` saves the mode and does not mine.
-      3. The lightning tools.
+      3. Done (2026-10-19): the 8 lightning tools: `open_channel`, `close_channel`, `list_channels`, `get_node_info`, `get_wallet_balance`, `deposit_funds`, `create_invoice`, and `pay_invoice`, with the Polar `mappers.ts`. Live test: all 30 tools on a started network with 2 bitcoind nodes and 3 LND nodes, also a 2-hop payment over a private channel. The test takes 64 s. A run under Node from `dist` also passes.
    4. The CLI backend flag and the bundled tool schema.
 2. tapd and litd, 1-2 weeks.
 3. Core Lightning, Eclair, and zip import and export, 1-2 weeks.
