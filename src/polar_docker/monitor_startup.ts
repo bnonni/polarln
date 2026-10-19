@@ -3,6 +3,7 @@
 
 import type {LndNode} from '../typescript/index.js';
 import type {Network} from '../typescript/index.js';
+import type {PolarNode} from '../typescript/index.js';
 import type {Status} from '../typescript/index.js';
 import * as bitcoind from './bitcoind_service.js';
 import * as lnd from './lnd_service.js';
@@ -34,25 +35,36 @@ const connectAllPeers = async (nodes: LndNode[]) => {
   }
 };
 
-/** Wait for the nodes of a started network, and set their statuses
+/** Wait for started nodes, and set their statuses
 
-  After all bitcoind nodes are online, mine 1 block. After all LND nodes are
-  online, connect them to each other. A node that does not start gets the
-  Error status.
+  After the bitcoind nodes are online, mine 1 block. After the LND nodes are
+  online, connect all of the LND nodes of the network to each other. A node
+  that does not start gets the Error status.
 
   {
     network: <Network Object>
+    [nodes]: [<Started Node Object>] // Default: all bitcoind and LND nodes
   }
 
   @returns via Promise
 */
-export default async ({network}: {network: Network}) => {
-  const {bitcoin, lightning} = network.nodes;
+export default async ({
+  network,
+  nodes,
+}: {
+  network: Network;
+  nodes?: PolarNode[];
+}) => {
+  const started = nodes || [
+    ...network.nodes.bitcoin,
+    ...network.nodes.lightning,
+  ];
+
+  const bitcoin = started.filter(n => n.type === 'bitcoin');
+  const lndNodes = started.filter(n => n.implementation === 'LND');
 
   const setNode = (name: string, status: Status, error?: Error) =>
     setStatus({error, network, only: name, status});
-
-  const lndNodes = lightning.filter(n => n.implementation === 'LND');
 
   const btcOnline = bitcoin.map(node => {
     return bitcoind
@@ -82,11 +94,15 @@ export default async ({network}: {network: Network}) => {
   if (!!btcOnline.length) {
     await Promise.all(btcOnline);
     await delay(mineDelayMs);
-    await bitcoind.mine({blocks: 1, node: bitcoin[0]}).catch(() => {});
+    await bitcoind
+      .mine({blocks: 1, node: network.nodes.bitcoin[0]})
+      .catch(() => {});
   }
 
   if (!!lnOnline.length) {
     await Promise.all(lnOnline);
-    await connectAllPeers(lndNodes);
+    await connectAllPeers(
+      network.nodes.lightning.filter(n => n.implementation === 'LND'),
+    );
   }
 };

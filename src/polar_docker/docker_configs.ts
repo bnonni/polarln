@@ -1,6 +1,8 @@
 // Polar v4.0.0 values for the bitcoind and LND nodes.
 // Ported from jamaljsr/polar (MIT): src/utils/constants.ts.
 
+import type {NodeImplementation} from '../typescript/index.js';
+
 /** Node Implementations That the Docker Backend Supports */
 export type DockerImplementation = 'bitcoind' | 'LND';
 
@@ -93,6 +95,17 @@ export const dockerConfigs: {
     volumeDirName: 'lnd',
   },
 };
+
+/** Node Implementations of Polar, in the Polar Order */
+export const polarImplementations: NodeImplementation[] = [
+  'LND',
+  'c-lightning',
+  'eclair',
+  'bitcoind',
+  'btcd',
+  'tapd',
+  'litd',
+];
 
 /** Docker Image Versions (Polar defaultRepoState version 77) */
 export const repoState: {[implementation in DockerImplementation]: RepoImage} =

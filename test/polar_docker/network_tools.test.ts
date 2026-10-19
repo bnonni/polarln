@@ -162,11 +162,11 @@ test('Docker backend errors have the same shape as bridge errors', () => {
           501,
           'PolarToolNotSupported',
           {
-            err: 'Unknown tool: mine_blocks (polarDocker does not support it yet)',
-            tool: 'mine_blocks',
+            err: 'Unknown tool: mint_tap_asset (polarDocker does not support it yet)',
+            tool: 'mint_tap_asset',
           },
         ],
-        run: () => polar.execute('mine_blocks', {}),
+        run: () => polar.execute('mint_tap_asset', {}),
       },
       {
         error: [

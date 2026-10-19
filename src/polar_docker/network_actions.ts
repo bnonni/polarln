@@ -39,6 +39,47 @@ export const saveComposeFile = async ({network}: {network: Network}) => {
   );
 };
 
+/** Prepare nodes to start
+
+  Move the ports that a different program uses, save the network and the
+  compose file, and make the volume directories, so that the host user owns
+  them
+
+  {
+    dataDir: <Data Directory Path String>
+    network: <Network Object>
+    nodes: [<Node to Start Object>]
+  }
+
+  @returns via Promise
+*/
+export const prepareStart = async ({
+  dataDir,
+  network,
+  nodes,
+}: {
+  dataDir: string;
+  network: Network;
+  nodes: PolarNode[];
+}) => {
+  const ports = await openPorts({network});
+
+  allNodes(network)
+    .filter(n => !!ports?.[n.name])
+    .forEach(n => (n.ports = {...n.ports, ...ports?.[n.name]}));
+
+  await saveNetwork({dataDir, network});
+  await saveComposeFile({network});
+
+  for (const node of nodes) {
+    const implementation = node.implementation as DockerImplementation;
+
+    await mkdir(nodePath(network, implementation, node.name), {
+      recursive: true,
+    });
+  }
+};
+
 /** Start the containers of a network and wait for the nodes
 
   The method saves each status change in the networks file
@@ -67,24 +108,7 @@ export const startNetwork = async ({
   await save();
 
   try {
-    // Move the ports that a different program uses
-    const ports = await openPorts({network});
-
-    allNodes(network)
-      .filter(n => !!ports?.[n.name])
-      .forEach(n => (n.ports = {...n.ports, ...ports?.[n.name]}));
-
-    await save();
-    await saveComposeFile({network});
-
-    // Make the volume directories, so that the host user owns them
-    for (const node of allNodes(network)) {
-      const implementation = node.implementation as DockerImplementation;
-
-      await mkdir(nodePath(network, implementation, node.name), {
-        recursive: true,
-      });
-    }
+    await prepareStart({dataDir, network, nodes: allNodes(network)});
 
     await runCompose({args: ['up', '-d'], network});
 
@@ -106,7 +130,8 @@ export const startNetwork = async ({
 
 /** Stop and remove the containers of a network
 
-  The node data stays in the volume directories
+  The node data stays in the volume directories. The containers of removed and
+  renamed nodes are removed too.
 
   {
     dataDir: <Data Directory Path String>
@@ -134,7 +159,7 @@ export const stopNetwork = async ({
   await save();
 
   try {
-    await runCompose({args: ['down'], network});
+    await runCompose({args: ['down', '--remove-orphans'], network});
 
     setStatus({network, status: 'Stopped'});
 

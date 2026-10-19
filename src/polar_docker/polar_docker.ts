@@ -16,8 +16,11 @@ export type PolarDockerArgs = {
   the Polar Docker images and the Polar v4.0.0 compose templates.
 
   The backend supports bitcoind and LND nodes and these tools:
-  list_networks, create_network, start_network, stop_network, delete_network,
-  and rename_network
+  - Network tools: list_networks, create_network, start_network, stop_network,
+    delete_network, and rename_network
+  - Node tools: add_node, remove_node, start_node, stop_node, restart_node,
+    rename_node, list_node_versions, get_default_node_command,
+    update_node_command, and set_lightning_backend
 
   {
     [dataDir]: <Data Directory Path String>

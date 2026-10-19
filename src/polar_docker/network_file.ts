@@ -106,6 +106,7 @@ export const changeNetworks = (args: {
   {
     dataDir: <Data Directory Path String>
     id: <Network Id Number or String>
+    [message]: <Not Found Error Message String>
   }
 
   @throws
@@ -114,7 +115,11 @@ export const changeNetworks = (args: {
   @returns via Promise
   <Network Object>
 */
-export const networkById = async (args: {dataDir: string; id: unknown}) => {
+export const networkById = async (args: {
+  dataDir: string;
+  id: unknown;
+  message?: string;
+}) => {
   const {networks} = await readNetworks({dataDir: args.dataDir});
 
   const id = typeof args.id === 'number' ? args.id : parseInt(String(args.id));
@@ -122,7 +127,9 @@ export const networkById = async (args: {dataDir: string; id: unknown}) => {
   const network = networks.find(n => n.id === id);
 
   if (!network) {
-    throw new Error(`Network with the id '${String(args.id)}' was not found.`);
+    throw new Error(
+      args.message || `Network with the id '${String(args.id)}' was not found.`,
+    );
   }
 
   return network;

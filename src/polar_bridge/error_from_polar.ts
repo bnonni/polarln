@@ -4,6 +4,7 @@ import type {PolarError} from '../typescript/index.js';
 // The first rule that matches the message gives the code and the message.
 const rules: [RegExp, number, string][] = [
   [/^Unknown tool\b/i, 501, 'PolarToolNotSupported'],
+  [/^polarDocker does not support\b/, 501, 'PolarToolNotSupported'],
   [/\btimed out\b|\btimeout\b/i, 504, 'PolarToolTimedOut'],
   [/^Network\b.*\bnot found\b/i, 404, 'PolarNetworkNotFound'],
   [/\bnode\b.*\bnot found\b|\bhas no\b.*\bnodes\b/i, 404, 'PolarNodeNotFound'],

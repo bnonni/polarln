@@ -7,6 +7,11 @@ const tool = 'tool';
 
 const tests = [
   ['Unknown tool: list_things', 501, 'PolarToolNotSupported'],
+  [
+    'polarDocker does not support eclair nodes yet',
+    501,
+    'PolarToolNotSupported',
+  ],
   ['Tool execution timed out', 504, 'PolarToolTimedOut'],
   ['Failed to get tool definitions - timeout', 504, 'PolarToolTimedOut'],
   ["Network with the id '99' was not found.", 404, 'PolarNetworkNotFound'],

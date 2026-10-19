@@ -29,6 +29,27 @@ export const nodePath = (
     name,
   );
 
+/** Get the host paths of the TLS cert and the macaroons of an LND node */
+export const lndPaths = (network: Network, name: string) => {
+  const lndPath = nodePath(network, 'LND', name);
+  const macaroonPath = (macaroon: string) =>
+    join(
+      lndPath,
+      'data',
+      'chain',
+      'bitcoin',
+      'regtest',
+      `${macaroon}.macaroon`,
+    );
+
+  return {
+    tlsCert: join(lndPath, 'tls.cert'),
+    adminMacaroon: macaroonPath('admin'),
+    invoiceMacaroon: macaroonPath('invoice'),
+    readonlyMacaroon: macaroonPath('readonly'),
+  };
+};
+
 /** Add a bitcoind node to a network
 
   The new node and the last bitcoind node are peers
@@ -122,17 +143,6 @@ export const addLndNode = ({
     );
   }
 
-  const lndPath = nodePath(network, 'LND', name);
-  const macaroonPath = (macaroon: string) =>
-    join(
-      lndPath,
-      'data',
-      'chain',
-      'bitcoin',
-      'regtest',
-      `${macaroon}.macaroon`,
-    );
-
   const node: LndNode = {
     id,
     networkId: network.id,
@@ -142,12 +152,7 @@ export const addLndNode = ({
     version,
     status: 'Stopped',
     backendName: backends[id % backends.length].name,
-    paths: {
-      tlsCert: join(lndPath, 'tls.cert'),
-      adminMacaroon: macaroonPath('admin'),
-      invoiceMacaroon: macaroonPath('invoice'),
-      readonlyMacaroon: macaroonPath('readonly'),
-    },
+    paths: lndPaths(network, name),
     ports: {
       rest: basePorts.LND.rest + id,
       grpc: basePorts.LND.grpc + id,
