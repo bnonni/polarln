@@ -63,12 +63,19 @@ const {network} = await createNetwork({polar, name: 'test'});
 await startNetwork({polar, networkId: network.id});
 ```
 
-The preview supports bitcoind and LND nodes, and 6 tools: `createNetwork`, `deleteNetwork`, `listNetworks`, `renameNetwork`, `startNetwork`, and `stopNetwork`. The other tools reject with `501`. The CLI uses only the bridge.
+The preview supports bitcoind and LND nodes, and these tools:
+
+- Network tools: `createNetwork`, `deleteNetwork`, `listNetworks`, `renameNetwork`, `startNetwork`, and `stopNetwork`.
+- Node tools: `addNode`, `getDefaultNodeCommand`, `listNodeVersions`, `removeNode`, `renameNode`, `restartNode`, `setLightningBackend`, `startNode`, `stopNode`, and `updateNodeCommand`.
+
+The other tools reject with `501`. The CLI uses only the bridge.
 
 Differences from the Polar app:
 
 - The container names are `polarln-n<id>-<name>`, so they do not clash with the Polar containers.
 - The networks file is `networks/networks.json` in the data directory. The statuses are labels, such as `Started`, as in the bridge results.
+- `startNode`, `restartNode`, and `renameNode` return after the nodes are online. `addNode` and `setLightningBackend` also wait if the network is started. Polar returns before the nodes are online.
+- `stopNetwork` also removes the containers of removed and renamed nodes.
 
 As in Polar, `startNetwork` returns after the nodes are online. It mines 1 block and connects the LND nodes to each other.
 
