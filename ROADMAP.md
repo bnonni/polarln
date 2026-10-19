@@ -24,16 +24,21 @@ Spike (2026-10-19, done): `scripts/headless_spike.ts` starts 1 bitcoind node and
 Spike results (Bitcoin Core v30.0, LND v0.20.0-beta):
 
 1. A full run takes about 9 s, from no containers to a paid invoice. The run passes under bun 1.3.11 and under Node 24.
-2. `@lightningpolar/lnd-api` 0.20.0-beta works under bun and under Node.
+2. `@lightningpolar/lnd-api` 0.20.0-beta works under bun and under Node. But it pins `@grpc/grpc-js` 1.10.8, which has 5 audit advisories (3 high). The MVP uses an own transport (see "Next phases").
 3. `bitcoin-core` 5.0.0 (the latest version) depends on the deprecated `request` package and on `bunyan`. The spike uses a `fetch` JSON-RPC client for bitcoind, with no package.
 4. A JSON compose file is valid YAML, so `docker compose` reads it. The spike does not use `js-yaml`, `docker-compose`, or `dockerode`.
 5. LND returns `FAILURE_REASON_INSUFFICIENT_BALANCE` until the `channel_ready` exchange ends, also if the sender shows the channel as active. The spike waits until both nodes show the channel as active. Then it tries the payment again for a maximum of 30 s.
 6. LND sends the `SUCCEEDED` payment status before the commitment update ends on the receiver. The receiver balance changes after that.
 7. The container names are `polarln-n<id>-<name>`. Each port is the first free port at or above the Polar base port. The spike ran next to 2 started Polar networks with no conflict.
+8. Under Node, `@grpc/grpc-js` prints the `DEP0123` warning if the socket host is an IP address. The spike uses `localhost`, as `getNodeCredentials` does.
 
 Next phases:
 
-1. MVP, 2-3 weeks: `polarDocker` with bitcoind and LND, a network file in `~/.polarln`, and a backend flag for the CLI. In headless mode, the CLI reads a bundled tool schema, not the live schema.
+1. MVP, 2-3 weeks: `polarDocker` with bitcoind and LND, a network file in `~/.polarln`, and a backend flag for the CLI. In headless mode, the CLI reads a bundled tool schema, not the live schema. The steps:
+   1. Done (2026-10-19): `src/lnd_grpc`, the polarln gRPC transport for the lnd Lightning, Router, and State services. It uses the lnd v0.20.0-beta protos in `protos/lnrpc` (`pnpm sync-protos <tag>`) and `@grpc/grpc-js` ^1.14.6. The fields are camelCase, as in `@lightningpolar/lnd-api`, so the Polar mappers can stay the same. `pnpm audit` shows no advisories. The spike uses the transport and passes under bun and under Node.
+   2. The Polar network model: the network file, the node names, the ports, the compose file, start, and stop.
+   3. The Polar LND and bitcoind tool logic and the Polar `mappers.ts`, so that the results are the same as the bridge results.
+   4. The CLI backend flag and the bundled tool schema.
 2. tapd and litd, 1-2 weeks.
 3. Core Lightning, Eclair, and zip import and export, 1-2 weeks.
 
