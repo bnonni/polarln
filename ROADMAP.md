@@ -40,7 +40,7 @@ Next phases:
    2. Done (2026-10-19): `polarDocker({dataDir})` in `src/polar_docker`. The 48 methods send their tool calls to the backend through `polar.execute`. The backend has the Polar network model (the network file, the node names, the ports, and the compose file) and 6 tools: `list_networks`, `create_network`, `start_network`, `stop_network`, `delete_network`, and `rename_network`. The results and the errors have the same shape as from the bridge. Live test: 3 start and stop cycles with 2 bitcoind nodes and 3 LND nodes. Each start takes 4-6 s. The test passes under bun and under Node.
    3. The other tools for bitcoind and LND nodes. Port the Polar LND and bitcoind tool logic and the Polar `mappers.ts`, so that the results are the same as the bridge results.
       1. Done (2026-10-19): the 10 node tools: `add_node`, `remove_node`, `start_node`, `stop_node`, `restart_node`, `rename_node`, `list_node_versions`, `get_default_node_command`, `update_node_command`, and `set_lightning_backend`. Live test: each tool on a started network with 2 bitcoind nodes and 3 LND nodes. The test takes 47 s.
-      2. The bitcoin tools.
+      2. Done (2026-10-19): the 6 bitcoin tools: `mine_blocks`, `get_blockchain_info`, `get_bitcoin_wallet_info`, `send_bitcoin`, `get_new_bitcoin_address`, and `set_auto_mine_mode`. In Polar, `set_auto_mine_mode` sets only the mode value in memory: the bridge tool does not start the mine timer and does not save the mode. `polarDocker` saves the mode and does not mine.
       3. The lightning tools.
    4. The CLI backend flag and the bundled tool schema.
 2. tapd and litd, 1-2 weeks.
