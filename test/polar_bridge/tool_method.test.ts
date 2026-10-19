@@ -82,3 +82,20 @@ tests.forEach(({args, description, error}) => {
     );
   });
 });
+
+test('A tool method runs the tool on a Docker backend', async () => {
+  const calls: [string, object][] = [];
+
+  const polar = {
+    dataDir: '/data',
+    execute: async (name: string, args: object) => {
+      calls.push([name, args]);
+
+      return {blocksMined: 1};
+    },
+  };
+
+  deepStrictEqual(await mineBlocks({networkId: 4, polar}), {blocksMined: 1});
+
+  deepStrictEqual(calls, [[tool, {networkId: 4}]]);
+});

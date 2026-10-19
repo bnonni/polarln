@@ -1,7 +1,7 @@
 import {readFile} from 'node:fs/promises';
 
 import {listNetworks} from '../polar_methods/index.js';
-import type {Polar} from '../typescript/index.js';
+import type {PolarBackend} from '../typescript/index.js';
 import type {PolarError} from '../typescript/index.js';
 import type {LitdNode} from '../typescript/index.js';
 import type {LndNode} from '../typescript/index.js';
@@ -32,7 +32,7 @@ export type GrpcCredentials = {
 export type GetNodeCredentialsArgs = {
   networkId: number;
   nodeName: string;
-  polar: Polar;
+  polar: PolarBackend;
 };
 
 export type GetNodeCredentialsResult = {
@@ -115,7 +115,7 @@ const credentials = async ([daemon, spec]: [string, FileSpec]) => {
   {
     networkId: <Network Id Number>
     nodeName: <Node Name String>
-    polar: <Polar Bridge Object>
+    polar: <Polar Backend Object>
   }
 
   @returns via Promise
