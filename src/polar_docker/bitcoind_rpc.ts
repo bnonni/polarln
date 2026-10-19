@@ -29,7 +29,9 @@ export default async <T>(args: {
   node: BitcoinNode;
   params?: unknown[];
 }): Promise<T> => {
-  const res = await fetch(`http://127.0.0.1:${args.node.ports.rpc}/`, {
+  const host = `127.0.0.1:${args.node.ports.rpc}`;
+
+  const res = await fetch(`http://${host}/`, {
     body: JSON.stringify({
       id: args.method,
       jsonrpc: '1.0',
@@ -39,6 +41,16 @@ export default async <T>(args: {
     headers: {authorization, 'content-type': 'application/json'},
     method: 'POST',
     signal: AbortSignal.timeout(timeoutMs),
+  }).catch(err => {
+    // Node puts the socket error in the cause, bun puts a code on the error
+    const {cause, code, message} = err as Error & {code?: string};
+
+    const refused =
+      code === 'ConnectionRefused' ? `connect ECONNREFUSED ${host}` : '';
+
+    throw new Error((cause as Error)?.message || refused || message, {
+      cause: err,
+    });
   });
 
   const text = await res.text();

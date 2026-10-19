@@ -7,16 +7,24 @@ import {join} from 'node:path';
 import {promisify} from 'node:util';
 
 import {authenticatedLndGrpc} from '../src/lnd_grpc/index.js';
+import type {AuthenticatedLnd} from '../src/lnd_grpc/index.js';
+import {waitFor} from '../src/polar_docker/wait_for.js';
 import {
   addNode,
   createNetwork,
   deleteNetwork,
+  getBitcoinWalletInfo,
+  getBlockchainInfo,
+  getNewBitcoinAddress,
   getNodeCredentials,
   listNetworks,
+  mineBlocks,
   polarDocker,
   removeNode,
   renameNode,
   restartNode,
+  sendBitcoin,
+  setAutoMineMode,
   setLightningBackend,
   startNetwork,
   startNode,
@@ -46,6 +54,22 @@ const statuses = (network: Network) =>
   [...network.nodes.bitcoin, ...network.nodes.lightning]
     .map(n => `${n.name}:${n.status}`)
     .join(' ');
+
+const withAlice = async <T>(use: (lnd: AuthenticatedLnd) => Promise<T>) => {
+  const creds = await getNodeCredentials({
+    networkId: networkId!,
+    nodeName: 'alice',
+    polar,
+  });
+
+  const {close, lnd} = authenticatedLndGrpc(creds.lnd!);
+
+  try {
+    return await use(lnd);
+  } finally {
+    close();
+  }
+};
 
 const pubkeyOf = async (networkId: number, nodeName: string) => {
   const creds = await getNodeCredentials({networkId, nodeName, polar});
@@ -162,6 +186,60 @@ try {
 
   log(`containers: ${names.sort().join(' ')}`);
   check(names.length === 5, 'no containers of removed or renamed nodes');
+
+  const chain = await getBlockchainInfo({networkId, polar});
+
+  await mineBlocks({blocks: 3, networkId, nodeName: 'backend2', polar});
+
+  const after = await getBlockchainInfo({networkId, polar});
+
+  log(
+    `mine_blocks 3 on backend2: backend1 height ${chain.blocks} to ${after.blocks}`,
+  );
+  check(after.blocks === chain.blocks + 3, 'backend1 got the mined blocks');
+
+  const {address} = await getNewBitcoinAddress({
+    networkId,
+    nodeName: 'alice',
+    polar,
+  });
+
+  const sent = await sendBitcoin({
+    amount: 0.5,
+    autoMine: true,
+    fromNode: 'backend1',
+    networkId,
+    polar,
+    toAddress: address,
+  });
+
+  const {walletInfo} = await getBitcoinWalletInfo({networkId, polar});
+
+  log(
+    `send_bitcoin 0.5 to alice: ${sent.txid}, backend1 ${walletInfo.balance}`,
+  );
+  check(walletInfo.balance > 0, 'backend1 has a balance');
+
+  const aliceBalance = await withAlice(async lnd => {
+    return await waitFor({
+      check: async () => {
+        const {confirmedBalance} = await lnd.lightning.walletBalance();
+
+        if (confirmedBalance !== '50000000') {
+          throw new Error(`alice balance is ${confirmedBalance}`);
+        }
+
+        return confirmedBalance as string;
+      },
+      timeout: 30_000,
+    });
+  });
+
+  log(`alice confirmed balance: ${aliceBalance}`);
+
+  const mode = await setAutoMineMode({mode: 30, networkId, polar});
+
+  check((await current()).autoMineMode === 30, `${mode.modeName} is saved`);
 
   await stopNetwork({networkId, polar});
 

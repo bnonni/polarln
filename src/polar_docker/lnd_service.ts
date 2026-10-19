@@ -149,3 +149,20 @@ export const waitUntilOnline = async (node: LndNode) => {
     },
   });
 };
+
+/** Get a new on-chain address of an LND node wallet (P2WKH)
+
+  <LND Node Object>
+
+  @returns via Promise
+  {
+    address: <Address String>
+  }
+*/
+export const getNewAddress = async (node: LndNode) => {
+  const {address} = await withLnd<{address: string}>({node}, lnd => {
+    return lnd.lightning.newAddress();
+  });
+
+  return {address};
+};

@@ -41,3 +41,14 @@ export const validateDockerImplementation = (
 
   return implementation;
 };
+
+/** Make sure that a number is more than 0
+
+  @throws
+  <Error>
+*/
+export const validatePositiveNumber = (value: unknown, fieldName: string) => {
+  if (value == null || (value as number) <= 0) {
+    throw new Error(`${fieldName} must be greater than 0`);
+  }
+};

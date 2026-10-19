@@ -21,6 +21,8 @@ export type PolarDockerArgs = {
   - Node tools: add_node, remove_node, start_node, stop_node, restart_node,
     rename_node, list_node_versions, get_default_node_command,
     update_node_command, and set_lightning_backend
+  - Bitcoin tools: mine_blocks, get_blockchain_info, get_bitcoin_wallet_info,
+    send_bitcoin, get_new_bitcoin_address, and set_auto_mine_mode
 
   {
     [dataDir]: <Data Directory Path String>

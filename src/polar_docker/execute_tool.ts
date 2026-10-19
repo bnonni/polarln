@@ -2,13 +2,19 @@ import errorFromPolar from '../polar_bridge/error_from_polar.js';
 import addNode from './tools/add_node.js';
 import createNetwork from './tools/create_network.js';
 import deleteNetwork from './tools/delete_network.js';
+import getBitcoinWalletInfo from './tools/get_bitcoin_wallet_info.js';
+import getBlockchainInfo from './tools/get_blockchain_info.js';
 import getDefaultNodeCommand from './tools/get_default_node_command.js';
+import getNewBitcoinAddress from './tools/get_new_bitcoin_address.js';
 import listNetworks from './tools/list_networks.js';
 import listNodeVersions from './tools/list_node_versions.js';
+import mineBlocks from './tools/mine_blocks.js';
 import removeNode from './tools/remove_node.js';
 import renameNetwork from './tools/rename_network.js';
 import renameNode from './tools/rename_node.js';
 import restartNode from './tools/restart_node.js';
+import sendBitcoin from './tools/send_bitcoin.js';
+import setAutoMineMode from './tools/set_auto_mine_mode.js';
 import setLightningBackend from './tools/set_lightning_backend.js';
 import startNetwork from './tools/start_network.js';
 import startNode from './tools/start_node.js';
@@ -24,13 +30,19 @@ export const dockerTools: {[name: string]: Tool} = {
   add_node: addNode,
   create_network: createNetwork,
   delete_network: deleteNetwork,
+  get_bitcoin_wallet_info: getBitcoinWalletInfo,
+  get_blockchain_info: getBlockchainInfo,
   get_default_node_command: getDefaultNodeCommand,
+  get_new_bitcoin_address: getNewBitcoinAddress,
   list_networks: listNetworks,
   list_node_versions: listNodeVersions,
+  mine_blocks: mineBlocks,
   remove_node: removeNode,
   rename_network: renameNetwork,
   rename_node: renameNode,
   restart_node: restartNode,
+  send_bitcoin: sendBitcoin,
+  set_auto_mine_mode: setAutoMineMode,
   set_lightning_backend: setLightningBackend,
   start_network: startNetwork,
   start_node: startNode,

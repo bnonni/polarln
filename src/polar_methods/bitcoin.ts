@@ -91,6 +91,8 @@ export type SetAutoMineModeArgs = {mode: AutoMineMode; networkId: number};
 export type SetAutoMineModeResult = {
   message: string;
   mode: AutoMineMode;
+  /** Mode Name, Such as "Every 30 seconds" */
+  modeName: string;
   networkId: number;
   success: boolean;
 };
