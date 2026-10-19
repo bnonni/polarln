@@ -31,13 +31,14 @@ Spike results (Bitcoin Core v30.0, LND v0.20.0-beta):
 6. LND sends the `SUCCEEDED` payment status before the commitment update ends on the receiver. The receiver balance changes after that.
 7. The container names are `polarln-n<id>-<name>`. Each port is the first free port at or above the Polar base port. The spike ran next to 2 started Polar networks with no conflict.
 8. Under Node, `@grpc/grpc-js` prints the `DEP0123` warning if the socket host is an IP address. The spike uses `localhost`, as `getNodeCredentials` does.
+9. With `--noseedbackup`, lnd shows the `LOCKED` wallet state for a short time after a restart. Then it unlocks the wallet itself. Polar sets the `Locked` status at the first `LOCKED` state. `polarDocker` sets the `Locked` status only if the state stays for 5 s.
 
 Next phases:
 
 1. MVP, 2-3 weeks: `polarDocker` with bitcoind and LND, a network file in `~/.polarln`, and a backend flag for the CLI. In headless mode, the CLI reads a bundled tool schema, not the live schema. The steps:
    1. Done (2026-10-19): `src/lnd_grpc`, the polarln gRPC transport for the lnd Lightning, Router, and State services. It uses the lnd v0.20.0-beta protos in `protos/lnrpc` (`pnpm sync-protos <tag>`) and `@grpc/grpc-js` ^1.14.6. The fields are camelCase, as in `@lightningpolar/lnd-api`, so the Polar mappers can stay the same. `pnpm audit` shows no advisories. The spike uses the transport and passes under bun and under Node.
-   2. The Polar network model: the network file, the node names, the ports, the compose file, start, and stop.
-   3. The Polar LND and bitcoind tool logic and the Polar `mappers.ts`, so that the results are the same as the bridge results.
+   2. Done (2026-10-19): `polarDocker({dataDir})` in `src/polar_docker`. The 48 methods send their tool calls to the backend through `polar.execute`. The backend has the Polar network model (the network file, the node names, the ports, and the compose file) and 6 tools: `list_networks`, `create_network`, `start_network`, `stop_network`, `delete_network`, and `rename_network`. The results and the errors have the same shape as from the bridge. Live test: 3 start and stop cycles with 2 bitcoind nodes and 3 LND nodes. Each start takes 4-6 s. The test passes under bun and under Node.
+   3. The other tools for bitcoind and LND nodes: the node tools (for example `add_node` and `start_node`), the bitcoin tools, and the lightning tools. Port the Polar LND and bitcoind tool logic and the Polar `mappers.ts`, so that the results are the same as the bridge results.
    4. The CLI backend flag and the bundled tool schema.
 2. tapd and litd, 1-2 weeks.
 3. Core Lightning, Eclair, and zip import and export, 1-2 weeks.

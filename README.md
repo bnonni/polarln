@@ -2,14 +2,15 @@
 
 TypeScript client methods for [Polar Lightning](https://lightningpolar.com/). Use them, or the `polarln` command, to control Polar regtest networks from scripts, tests, and a shell. Use `getNodeCredentials` to connect [`lightning`](https://github.com/alexbosworth/lightning), [`tapass`](https://github.com/bnonni/tapass), and [`litterm`](https://github.com/bnonni/litterm) to Polar nodes.
 
-polarln sends requests to the HTTP bridge of the Polar v4 desktop app. It does not start Docker containers itself.
+By default, polarln sends requests to the HTTP bridge of the Polar v4 desktop app. The `polarDocker` backend (preview) runs some tools on Docker, without the Polar app. See [Docker backend](#docker-backend-preview).
 
 ## Requirements
 
 - Polar v4.0.0 or later. The Polar app must run. The bridge listens on `http://localhost:37373`.
 - Node.js 22.12 or later.
+- For the Docker backend: Docker with Docker Compose v2. The Polar app is not necessary.
 
-polarln does not work in CI without a desktop session. For CI, use a Docker Compose regtest network.
+The Polar bridge does not work in CI without a desktop session.
 
 ## Install
 
@@ -47,6 +48,30 @@ await mineBlocks({blocks: 6, networkId: 4, polar});
 
 Each value is `{cert, macaroon, socket}` with base64 files and a `localhost:<port>` socket. The node must be started. Other implementations reject with `400`.
 
+## Docker backend (preview)
+
+`polarDocker` runs the Polar tools on Docker, without the Polar app. It uses the Polar Docker images and the Polar v4.0.0 compose templates. The methods are the same for the two backends.
+
+```ts
+import {createNetwork, polarDocker, startNetwork} from 'polarln';
+
+// The data is in ~/.polarln, or in $POLARLN_DATA_DIR
+const {polar} = polarDocker();
+
+const {network} = await createNetwork({polar, name: 'test'});
+
+await startNetwork({polar, networkId: network.id});
+```
+
+The preview supports bitcoind and LND nodes, and 6 tools: `createNetwork`, `deleteNetwork`, `listNetworks`, `renameNetwork`, `startNetwork`, and `stopNetwork`. The other tools reject with `501`. The CLI uses only the bridge.
+
+Differences from the Polar app:
+
+- The container names are `polarln-n<id>-<name>`, so they do not clash with the Polar containers.
+- The networks file is `networks/networks.json` in the data directory. The statuses are labels, such as `Started`, as in the bridge results.
+
+As in Polar, `startNetwork` returns after the nodes are online. It mines 1 block and connects the LND nodes to each other.
+
 ## CLI
 
 The `polarln` command runs each Polar bridge tool from a shell. Each tool is a command, and each tool argument is a flag. Install it with `npm install -g polarln`, or run it with `npx polarln`:
@@ -83,7 +108,8 @@ A change that you make directly on a node (for example with `lncli`, `bitcoin-cl
 
 Each method has the name of its Polar tool in camelCase. It sends its arguments (except `polar`) to the tool and returns the Polar result unchanged.
 
-- Bridge: `polarBridge`, `listTools`, `getNodeCredentials`
+- Backends: `polarBridge`, `polarDocker`
+- Bridge: `listTools`, `getNodeCredentials` (`getNodeCredentials` also works with `polarDocker`)
 - Networks: `createNetwork`, `deleteNetwork`, `exportNetworkToZip`, `importNetworkFromZip`, `listNetworks`, `renameNetwork`, `startNetwork`, `stopNetwork`
 - Nodes: `addNode`, `getDefaultNodeCommand`, `listNodeVersions`, `removeNode`, `renameNode`, `restartNode`, `setLightningBackend`, `setTapBackend`, `startNode`, `stopNode`, `updateNodeCommand`
 - Bitcoin: `getBitcoinWalletInfo`, `getBlockchainInfo`, `getNewBitcoinAddress`, `mineBlocks`, `sendBitcoin`, `setAutoMineMode`
@@ -104,7 +130,7 @@ Methods reject with `[code, message, details]`. Polar sends each tool error as a
 | 404  | `PolarNetworkNotFound`          | The network does not exist.                         |
 | 404  | `PolarNodeNotFound`             | The node does not exist.                            |
 | 404  | `PolarObjectNotFound`           | Another object (for example a file) does not exist. |
-| 501  | `PolarToolNotSupported`         | This Polar version does not have the tool.          |
+| 501  | `PolarToolNotSupported`         | Polar or `polarDocker` does not have the tool.      |
 | 503  | `FailedToConnectToPolarBridge`  | The Polar app does not run, or the port is wrong.   |
 | 503  | `PolarToolFailed`               | Polar or a node returned another error.             |
 | 503  | `UnexpectedPolarBridgeResponse` | The response is not a Polar bridge response.        |
@@ -133,6 +159,8 @@ pnpm test
 pnpm build
 ```
 
+To test the Docker backend on Docker, run `pnpm check-docker`.
+
 ## License
 
-[Unlicense](LICENSE). The types in `src/typescript` and `src/polar_methods` come from [jamaljsr/polar](https://github.com/jamaljsr/polar) (MIT). See [NOTICE](NOTICE).
+[Unlicense](LICENSE). The code in `src/typescript`, `src/polar_methods`, and `src/polar_docker` comes from [jamaljsr/polar](https://github.com/jamaljsr/polar) (MIT). The protos in `protos/lnrpc` come from [lnd](https://github.com/lightningnetwork/lnd) (MIT). See [NOTICE](NOTICE).
