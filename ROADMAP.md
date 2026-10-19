@@ -6,15 +6,12 @@ This file shows the planned work for polarln. The order can change.
 
 - Phases 0-2 (2026-10-15): the tooling, 48 methods for the Polar bridge tools, and `getNodeCredentials`.
 - Phase 3 (2026-10-17): the `polarln` CLI. Each Polar bridge tool is a command. The commands come from the live tool schemas.
+- Release 0.1.0 (2026-10-17): polarln is on npm.
+- CI (2026-10-19): GitHub Actions runs lint, test, and build on each push to `main` and on each pull request.
 
 ## Next
 
-1. Publish polarln 0.1.0 to npm.
-2. Merge the `ci` branch (GitHub Actions: lint, test, build).
-
-## Later
-
-- Phase 4: use polarln in the live tests of litterm and tapass. This phase starts after litterm 0.3.0.
+No item now. The next item comes from the backlog.
 
 ## Backlog
 
@@ -25,12 +22,12 @@ Goal: you run a `polarln` command against a running network. The Polar desktop a
 What works now (from the Polar v4.0.0 source, not tested live):
 
 - The bridge sends each tool call to the Polar app window. The tool then uses the same store actions as the UI. Thus a change through polarln (for example `openChannel`, `startNode`, `addNode`) shows in the UI immediately.
-- Polar subscribes to lnd channel events. Thus a channel that you open or close directly on lnd (for example with litterm or `lncli`) also shows in the UI.
+- Polar subscribes to lnd channel events. Thus a channel that you open or close directly on lnd (for example with `lncli`) also shows in the UI.
 
 Gaps:
 
 1. Balance and payment changes outside the bridge do not cause a UI refresh. The Polar code has a TODO for this in `src/store/models/lightning.ts`.
-2. Polar has no tapd listener. Asset changes that you make directly with tapass do not cause a UI refresh.
+2. Polar has no tapd listener. Asset changes that you make directly on tapd do not cause a UI refresh.
 3. Polar syncs the chart one time per 5 seconds at most, with no trailing call. Thus the UI can miss the last change in a burst of channel events.
 
 Possible work:
