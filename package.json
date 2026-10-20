@@ -51,6 +51,7 @@
   },
   "scripts": {
     "build": "rimraf dist && tsc -p tsconfig.json",
+    "check-cli": "pnpm build && bun scripts/check_cli.ts",
     "check-docker": "bun scripts/check_docker.ts",
     "check-tools": "bun scripts/check_tools.ts",
     "clean": "rimraf dist coverage",

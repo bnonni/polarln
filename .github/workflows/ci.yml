@@ -52,3 +52,10 @@ jobs:
       # The tests run in Bun. Make sure that Node.js also loads the package.
       - name: Load the package in Node.js
         run: node --input-type=module -e "await import('./dist/index.js')"
+
+      # The docker backend help and list-networks do not need Docker.
+      - name: Run the CLI with the docker backend in Node.js
+        run: |
+          dir=$(mktemp -d)
+          test "$(node dist/cli.js list-networks --backend docker --data-dir "$dir" | tr -d ' \n')" = '{"networks":[]}'
+          node dist/cli.js --help --backend docker > /dev/null
