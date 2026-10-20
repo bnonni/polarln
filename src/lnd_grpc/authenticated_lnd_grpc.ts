@@ -5,6 +5,8 @@ import apiForProto from './api_for_proto.js';
 import grpcCredentials from './grpc_credentials.js';
 import grpcServices from './grpc_services.js';
 import promiseService from './promise_service.js';
+import {cancelStreams} from './promise_service.js';
+import type {StreamCall} from './promise_service.js';
 import type {AuthenticatedLnd} from './types.js';
 import type {LndAuthentication} from './types.js';
 import type {LndServiceType} from './types.js';
@@ -41,7 +43,7 @@ const defaultProtosPath = fileURLToPath(new URL(protosDir, import.meta.url));
 
   @returns
   {
-    close: <Close the gRPC Clients Function>
+    close: <Cancel the Open Streams and Close the gRPC Clients Function>
     lnd: {
       lightning: <Lightning API Methods Object>
       router: <Router API Methods Object>
@@ -81,10 +83,16 @@ export default (
     return {type, ...api};
   });
 
+  const streams = new Set<StreamCall>();
+
   return {
-    close: () => services.forEach(({client}) => client.close()),
+    close: () => {
+      cancelStreams(streams);
+
+      services.forEach(({client}) => client.close());
+    },
     lnd: services.reduce((lnd, {client, definition, type}) => {
-      lnd[type] = promiseService({client, definition});
+      lnd[type] = promiseService({client, definition, streams});
 
       return lnd;
     }, {} as AuthenticatedLnd),

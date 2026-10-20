@@ -11,6 +11,8 @@ import {loadSync} from '@grpc/proto-loader';
 import apiForProto from '../../src/lnd_grpc/api_for_proto.js';
 import grpcOptions from '../../src/lnd_grpc/grpc_options.js';
 import promiseService from '../../src/lnd_grpc/promise_service.js';
+import {cancelStreams} from '../../src/lnd_grpc/promise_service.js';
+import type {StreamCall} from '../../src/lnd_grpc/promise_service.js';
 
 const protosPath = fileURLToPath(new URL('../../protos/', import.meta.url));
 
@@ -28,7 +30,19 @@ const load = (path: string) => {
 const startServer = async () => {
   const server = new grpc.Server();
 
+  // The fake close stream sends 1 update and ends only on a cancel
+  let cancelled: () => void = () => {};
+
+  const closeCancelled = new Promise<void>(resolve => (cancelled = resolve));
+
   server.addService(load(lightningPath).lnrpc.Lightning.service, {
+    closeChannel: (call: any) => {
+      call.on('cancelled', () => cancelled());
+
+      return call.write({
+        closePending: {outputIndex: 0, txid: Buffer.from('')},
+      });
+    },
     getChanInfo: ({request}: any, cbk: any) => {
       return cbk(null, {capacity: '250000', channelId: request.chanId});
     },
@@ -61,10 +75,15 @@ const startServer = async () => {
     );
   });
 
-  return {port, server};
+  return {closeCancelled, port, server};
 };
 
-const service = (args: {path: string; service: string; socket: string}) => {
+const service = (args: {
+  path: string;
+  service: string;
+  socket: string;
+  streams?: Set<StreamCall>;
+}) => {
   const api = apiForProto({
     includes,
     credentials: grpc.credentials.createInsecure(),
@@ -75,7 +94,9 @@ const service = (args: {path: string; service: string; socket: string}) => {
     type: args.service === 'Lightning' ? 'lnrpc' : 'routerrpc',
   });
 
-  return {client: api.client, methods: promiseService(api)};
+  const methods = promiseService({...api, streams: args.streams});
+
+  return {client: api.client, methods};
 };
 
 const firstData = (stream: any) => {
@@ -144,6 +165,49 @@ test('Promise service methods call lnd methods', async () => {
   } finally {
     lightning.client.close();
     router.client.close();
+    server.forceShutdown();
+  }
+
+  return;
+});
+
+test('cancelStreams cancels the open stream calls', async () => {
+  const {closeCancelled, port, server} = await startServer();
+  const socket = `127.0.0.1:${port}`;
+  const streams = new Set<StreamCall>();
+
+  const lightning = service({
+    path: lightningPath,
+    service: 'Lightning',
+    socket,
+    streams,
+  });
+
+  try {
+    const ended = lightning.methods.subscribeChannelEvents();
+
+    await firstData(ended);
+    await new Promise(resolve => ended.once('status', resolve));
+
+    equal(streams.size, 0, 'A stream call that ends leaves the set');
+
+    // The close stream has no error listener, so a CANCELLED error would throw
+    const open = lightning.methods.closeChannel({});
+
+    await new Promise(resolve => open.once('data', resolve));
+
+    equal(streams.size, 1, 'An open stream call is in the set');
+
+    const status = new Promise<any>(resolve => open.once('status', resolve));
+
+    cancelStreams(streams);
+
+    await closeCancelled;
+
+    equal((await status).code, grpc.status.CANCELLED, 'The call ended');
+    equal(streams.size, 0, 'The set is empty');
+  } finally {
+    lightning.client.close();
     server.forceShutdown();
   }
 
