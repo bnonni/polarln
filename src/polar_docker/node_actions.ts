@@ -4,9 +4,10 @@
 import type {Network} from '../typescript/index.js';
 import type {PolarNode} from '../typescript/index.js';
 import type {DataFolder} from './data_folder.js';
-import monitorStartup from './monitor_startup.js';
+import type {ActionSteps} from './network_actions.js';
+import {actionSteps} from './network_actions.js';
 import {prepareStart} from './network_actions.js';
-import {saveNetwork} from './network_file.js';
+import {assertNetworksFileWritable} from './network_file.js';
 import runCompose from './run_compose.js';
 import setStatus from './set_status.js';
 
@@ -16,6 +17,8 @@ type Args = {
   network: Network;
   /** Node of the Network */
   node: PolarNode;
+  /** Start and Stop Steps (default: the real steps) */
+  steps?: ActionSteps;
 };
 
 const asError = (err: unknown) =>
@@ -23,13 +26,16 @@ const asError = (err: unknown) =>
 
 /** Start the container of one node and wait for the node
 
-  The method saves each status change in the networks file. The network
-  status does not change.
+  The networks file gets only the final statuses, as in a network start. The
+  method saves a maximum of 3 times: the moved ports, the Started status
+  after the container starts, and the result of the wait. A failure saves the
+  Error status. The network status does not change.
 
   {
     folder: <Data Folder Object>
     network: <Network Object>
     node: <Node of the Network Object>
+    [steps]: <Start and Stop Steps Object> // Default: the real steps
   }
 
   @throws
@@ -37,21 +43,32 @@ const asError = (err: unknown) =>
 
   @returns via Promise
 */
-export const startNode = async ({folder, network, node}: Args) => {
-  const save = () => saveNetwork({folder, network});
+export const startNode = async ({
+  folder,
+  network,
+  node,
+  steps = actionSteps,
+}: Args) => {
+  const save = () => steps.save({folder, network});
 
-  setStatus({network, only: node.name, status: 'Starting'});
-
-  await save();
+  // Do not start the container if the save after the start cannot write
+  await assertNetworksFileWritable({folder});
 
   try {
-    await prepareStart({folder, network, nodes: [node]});
+    await prepareStart({folder, network, nodes: [node], steps});
+
+    // The Starting status stays in memory, as in the Polar app
+    setStatus({network, only: node.name, status: 'Starting'});
 
     // A container in an error state does not start again without a stop
     await runCompose({args: ['stop', node.name], folder, network});
     await runCompose({args: ['up', '-d', node.name], folder, network});
 
-    await monitorStartup({network, nodes: [node]});
+    setStatus({network, only: node.name, status: 'Started'});
+
+    await save();
+
+    await steps.monitor({network, nodes: [node]});
   } catch (err) {
     setStatus({error: asError(err), network, only: node.name, status: 'Error'});
 
@@ -65,13 +82,15 @@ export const startNode = async ({folder, network, node}: Args) => {
 
 /** Stop the container of one node
 
-  The method saves each status change in the networks file. The network
-  status does not change.
+  The networks file gets only the final status. After the container stops,
+  the method saves the Stopped status. A failure saves the Error status. The
+  network status does not change.
 
   {
     folder: <Data Folder Object>
     network: <Network Object>
     node: <Node of the Network Object>
+    [steps]: <Start and Stop Steps Object> // Default: the real steps
   }
 
   @throws
@@ -79,12 +98,19 @@ export const startNode = async ({folder, network, node}: Args) => {
 
   @returns via Promise
 */
-export const stopNode = async ({folder, network, node}: Args) => {
-  const save = () => saveNetwork({folder, network});
+export const stopNode = async ({
+  folder,
+  network,
+  node,
+  steps = actionSteps,
+}: Args) => {
+  const save = () => steps.save({folder, network});
 
+  // Do not stop the container if the save after the stop cannot write
+  await assertNetworksFileWritable({folder});
+
+  // The Stopping status stays in memory, as in the Polar app
   setStatus({network, only: node.name, status: 'Stopping'});
-
-  await save();
 
   try {
     await runCompose({args: ['stop', node.name], folder, network});

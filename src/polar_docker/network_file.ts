@@ -148,6 +148,26 @@ const readNetworksFile = async (path: string) => {
   return networksFile;
 };
 
+// A different version can have different keys or migrations
+const assertVersion = (file: NetworksFile) => {
+  if (file.version !== fileVersion) {
+    throw new Error(
+      `polarDocker does not support the networks file version ${JSON.stringify(file.version)} (only ${fileVersion})`,
+    );
+  }
+};
+
+// Get the charts of a file, and add the charts key that the Polar app needs
+const chartsOf = (file: NetworksFile, path: string) => {
+  file.charts ??= {};
+
+  if (!isObject(file.charts)) {
+    throw notReadable({err: 'The charts key is not an object', path});
+  }
+
+  return file.charts;
+};
+
 // Get a new networks file, if the data folder can get a new file
 const newNetworksFile = async (folder: DataFolder): Promise<NetworksFile> => {
   const networksDir = join(folder.dataDir, 'networks');
@@ -173,6 +193,41 @@ const newNetworksFile = async (folder: DataFolder): Promise<NetworksFile> => {
   }
 
   return {version: fileVersion, networks: [], charts: {}};
+};
+
+/** Check that a change of the networks file can be written
+
+  A file with a different version, with a status that is not a Polar status,
+  or with charts that are not an object cannot be written. Run this check
+  before a Docker change that a save must follow, so that the save does not
+  fail for these causes. A missing file passes.
+
+  {
+    folder: <Data Folder Object>
+  }
+
+  @throws
+  <Error>
+  [503, 'FailedToReadNetworksFile', {err, path}]
+
+  @returns via Promise
+*/
+export const assertNetworksFileWritable = async ({
+  folder,
+}: {
+  folder: DataFolder;
+}) => {
+  const path = filePath(folder.dataDir);
+  const file = await readNetworksFile(path);
+
+  if (!file) {
+    return;
+  }
+
+  assertVersion(file);
+  chartsOf(file, path);
+
+  file.networks.forEach(encodeNetwork);
 };
 
 /** Read the networks of a data folder
@@ -245,21 +300,9 @@ const writeChange = (args: {change: ChangeNetworks; folder: DataFolder}) =>
       const file =
         (await readNetworksFile(path)) || (await newNetworksFile(args.folder));
 
-      // A different version can have different keys or migrations
-      if (file.version !== fileVersion) {
-        throw new Error(
-          `polarDocker does not support the networks file version ${JSON.stringify(file.version)} (only ${fileVersion})`,
-        );
-      }
+      assertVersion(file);
 
-      // The Polar app needs the charts key
-      file.charts ??= {};
-
-      if (!isObject(file.charts)) {
-        throw notReadable({err: 'The charts key is not an object', path});
-      }
-
-      const {charts} = file;
+      const charts = chartsOf(file, path);
       const before = new Map(file.networks.map(n => [n.id, JSON.stringify(n)]));
 
       args.change(file.networks, charts);
