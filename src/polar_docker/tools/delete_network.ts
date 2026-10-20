@@ -35,8 +35,11 @@ export default async ({args, folder}: ToolArgs<DeleteNetworkArgs>) => {
     await stopNetwork({folder, network});
   }
 
-  await rm(network.path, {force: true, recursive: true});
+  // The Polar app can start during the stop
+  await folder.assertAppOff({stage: 'before-delete'});
 
+  // As in Polar, the folder delete comes before the save. It runs in the
+  // save, so that a refused save does not delete the folder.
   await changeNetworks({
     change: networks => {
       const index = networks.findIndex(n => n.id === network.id);
@@ -45,6 +48,7 @@ export default async ({args, folder}: ToolArgs<DeleteNetworkArgs>) => {
         networks.splice(index, 1);
       }
     },
+    effect: () => rm(network.path, {force: true, recursive: true}),
     folder,
   });
 

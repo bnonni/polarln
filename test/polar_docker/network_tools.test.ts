@@ -18,6 +18,7 @@ import {polarDocker} from '../../src/index.js';
 import {renameNetwork} from '../../src/index.js';
 import {startNetwork} from '../../src/index.js';
 import {stopNetwork} from '../../src/index.js';
+import type {CheckApp} from '../../src/polar_docker/data_folder.js';
 import makePolarDocker from '../../src/polar_docker/make_polar_docker.js';
 import {initChartFromNetwork} from '../../src/polar_docker/polar_chart.js';
 import {assertPolarLoadable} from '../fixtures/assert_polar_loadable.js';
@@ -161,6 +162,9 @@ test('The internal maker gets the data directory from its arguments', () => {
   );
 });
 
+// The Polar app does not run, so the guard of the Polar home lets tools run
+const appOff: CheckApp = async () => ({runs: false});
+
 // Get the compose project name and the container names of a network
 const composeNames = async (network: Network) => {
   const file = await readFile(join(network.path, 'docker-compose.yml'), 'utf8');
@@ -180,7 +184,13 @@ test('The Polar home gets the container names of the Polar app', () => {
   return withPolarHome(async ({dataDir, file, home}) => {
     const {calls, docker} = fakeDockerRunner();
 
-    const {polar} = makePolarDocker({dataDir, docker, env: {}, home});
+    const {polar} = makePolarDocker({
+      checkApp: appOff,
+      dataDir,
+      docker,
+      env: {},
+      home,
+    });
 
     const {network} = await createNetwork({name: 'n', polar});
 
@@ -247,7 +257,13 @@ test('A network folder outside the data folder does not change', () => {
 
     const before = await readFile(file, 'utf8');
 
-    const {polar} = makePolarDocker({dataDir, docker, env: {}, home});
+    const {polar} = makePolarDocker({
+      checkApp: appOff,
+      dataDir,
+      docker,
+      env: {},
+      home,
+    });
 
     const tools = [
       {args: {networkId: 3}, tool: 'start_network'},
@@ -420,15 +436,24 @@ test('Changes in one process at the same time keep all networks', () => {
       names.map(name => createNetwork({name, polar})),
     );
 
+    // The checks before each change read the file, so the changes can run in
+    // a different order than the calls
     deepStrictEqual(
-      created.map(n => n.network.id),
+      created.map(n => n.network.id).sort((a, b) => a - b),
       [1, 2, 3, 4, 5],
       'Got a different id for each network',
     );
 
+    const byId = (networks: Network[]) =>
+      networks
+        .map(n => [n.id, n.name])
+        .sort(([a], [b]) => Number(a) - Number(b));
+
+    const {networks} = await listNetworks({polar});
+
     deepStrictEqual(
-      (await listNetworks({polar})).networks.map(n => n.name),
-      names,
+      [byId(networks), networks.map(n => n.name).sort()],
+      [byId(created.map(n => n.network)), names],
       'Got all networks',
     );
   });

@@ -30,7 +30,11 @@ const syncFolder = async (path: string) => {
   file. If a step fails, the temporary file goes away, and the file does not
   change. The folder must exist.
 
+  The optional step runs after the sync and before the rename. If the step
+  fails, the file does not change.
+
   {
+    [beforeRename]: <Run After the Sync and Before the Rename Function>
     path: <File Path String>
     text: <File Text String>
   }
@@ -40,7 +44,11 @@ const syncFolder = async (path: string) => {
 
   @returns via Promise
 */
-export default async (args: {path: string; text: string}) => {
+export default async (args: {
+  beforeRename?: () => Promise<unknown>;
+  path: string;
+  text: string;
+}) => {
   const random = randomBytes(6).toString('hex');
   const temp = `${args.path}.${process.pid}.${random}.tmp`;
 
@@ -53,6 +61,8 @@ export default async (args: {path: string; text: string}) => {
     } finally {
       await handle.close();
     }
+
+    await args.beforeRename?.();
 
     await rename(temp, args.path);
   } catch (err) {

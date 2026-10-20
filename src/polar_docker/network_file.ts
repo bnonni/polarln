@@ -34,6 +34,9 @@ type NetworksFile = {
 /** Change the Networks Array and the Charts of the Networks File */
 type ChangeNetworks = (networks: Network[], charts: PolarCharts) => void;
 
+/** Change Other Files With the Save of the Networks File */
+type SaveEffect = () => Promise<unknown>;
+
 // An object with a status number on disk and a status label in memory
 type StatusHolder = {status?: unknown};
 
@@ -291,7 +294,11 @@ const syncCharts = (args: {
 };
 
 // Read the file, change the networks, and write the file, with the lock held
-const writeChange = (args: {change: ChangeNetworks; folder: DataFolder}) =>
+const writeChange = (args: {
+  change: ChangeNetworks;
+  effect?: SaveEffect;
+  folder: DataFolder;
+}) =>
   lockNetworksFile({
     dataDir: args.folder.dataDir,
     use: async () => {
@@ -315,9 +322,14 @@ const writeChange = (args: {change: ChangeNetworks; folder: DataFolder}) =>
       // know
       const json = JSON.stringify({...file, networks}, null, 2);
 
+      // The Polar app can start during a long tool, so check again just
+      // before the new file replaces the old file
+      await args.folder.assertAppOff({stage: 'before-save'});
+
       // The lock made the networks folder. Polar writes the file with no
-      // end newline.
-      await writeFileAtomic({path, text: json});
+      // end newline. The effect comes after each check that can refuse the
+      // save, so that a refused save does not change the other files.
+      await writeFileAtomic({beforeRename: args.effect, path, text: json});
 
       return {networks: file.networks};
     },
@@ -341,14 +353,27 @@ const writeChange = (args: {change: ChangeNetworks; folder: DataFolder}) =>
   network, and the chart of each removed network goes away. The charts of the
   other networks stay the same.
 
+  In the Polar app data directory, the method checks that the Polar app does
+  not run, just before the write. If the app runs, the file does not change.
+
+  The effect changes other files with the save, for example a folder delete.
+  It runs with the lock held, after the checks and after the new file is on
+  the disk, and just before the new file replaces the old file. If a check
+  refuses the save, the effect does not run. If the effect fails, the file
+  does not change. The effect must not start a change of the networks
+  file, because that change waits for this change.
+
   {
     change: <Change the Networks Array and the Charts Function>
+    [effect]: <Change Other Files With the Save Function>
     folder: <Data Folder Object>
   }
 
   @throws
   <Error>
   [409, 'NetworksFileBusy', {dataDir}]
+  [409, 'PolarAppIsRunning', {dataDir, found, hint, pid|url, stage}]
+  [503, 'FailedToCheckPolarApp', {dataDir, err}]
   [503, 'FailedToReadNetworksFile', {err, path}]
 
   @returns via Promise
@@ -358,6 +383,7 @@ const writeChange = (args: {change: ChangeNetworks; folder: DataFolder}) =>
 */
 export const changeNetworks = (args: {
   change: ChangeNetworks;
+  effect?: SaveEffect;
   folder: DataFolder;
 }) => {
   const {dataDir} = args.folder;
@@ -407,7 +433,10 @@ export const networkById = async (args: {
 
 /** Save a network in place of the network with the same id
 
+  The effect changes other files with the save, as in changeNetworks.
+
   {
+    [effect]: <Change Other Files With the Save Function>
     folder: <Data Folder Object>
     network: <Network Object>
   }
@@ -415,14 +444,18 @@ export const networkById = async (args: {
   @throws
   <Error>
   [409, 'NetworksFileBusy', {dataDir}]
+  [409, 'PolarAppIsRunning', {dataDir, found, hint, pid|url, stage}]
+  [503, 'FailedToCheckPolarApp', {dataDir, err}]
   [503, 'FailedToReadNetworksFile', {err, path}]
 
   @returns via Promise
 */
 export const saveNetwork = async ({
+  effect,
   folder,
   network,
 }: {
+  effect?: SaveEffect;
   folder: DataFolder;
   network: Network;
 }) => {
@@ -434,6 +467,7 @@ export const saveNetwork = async ({
         networks[index] = network;
       }
     },
+    effect,
     folder,
   });
 };

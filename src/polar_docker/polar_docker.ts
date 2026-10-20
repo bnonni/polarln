@@ -18,6 +18,13 @@ export type PolarDockerArgs = {
   polar-network-<id>, as in the Polar app. In a different data directory, the
   names start with polarln.
 
+  The Polar app does not read its files again while it runs. Thus, in a data
+  directory of the Polar app, each tool that can change files or containers
+  first checks that the app does not run. The check probes the Polar bridge
+  on the port of POLAR_MCP_PORT, else on port 37373, and then looks for a
+  Polar process. If the app runs, the tool gives 409 PolarAppIsRunning. If
+  the check has no clear result, the tool gives 503 FailedToCheckPolarApp.
+
   The backend supports bitcoind and LND nodes and these tools:
   - Network tools: list_networks, create_network, start_network, stop_network,
     delete_network, and rename_network

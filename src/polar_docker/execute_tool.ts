@@ -2,6 +2,8 @@ import errorFromPolar from '../polar_bridge/error_from_polar.js';
 import type {PolarError} from '../typescript/index.js';
 import type {DataFolder} from './data_folder.js';
 import type {DockerToolName} from './docker_tool_names.js';
+import {readToolNames} from './docker_tool_names.js';
+import {assertNetworksFileWritable} from './network_file.js';
 import addNode from './tools/add_node.js';
 import closeChannel from './tools/close_channel.js';
 import createInvoice from './tools/create_invoice.js';
@@ -35,6 +37,8 @@ import updateNodeCommand from './tools/update_node_command.js';
 import type {ToolArgs} from './tools/types.js';
 
 type Tool = (args: ToolArgs<any>) => Promise<unknown>;
+
+const readTools = new Set<string>(readToolNames);
 
 // A tool can reject with a PolarError tuple, with its own code and details
 const isPolarError = (err: unknown): err is PolarError =>
@@ -82,6 +86,12 @@ export const dockerTools: {[name in DockerToolName]: Tool} = {
   PolarError tuple from a tool passes through with no change. The other errors
   get a code from their message, as the bridge errors do.
 
+  A tool that is not on the read list (readToolNames) can change files or
+  containers. Before such a tool, two checks run:
+  - In the Polar app data directory, the Polar app must not run.
+  - The networks file must be a file that polarDocker can write, so that the
+    tool does not fail at its save after a change.
+
   {
     args: <Tool Arguments Object>
     folder: <Data Folder Object>
@@ -93,6 +103,8 @@ export const dockerTools: {[name in DockerToolName]: Tool} = {
   <Tool Result Object>
 
   @rejects <PolarError>
+  [409, 'PolarAppIsRunning', {dataDir, found, hint, pid|url, stage}]
+  [503, 'FailedToCheckPolarApp', {dataDir, err}]
 */
 export default async (args: {
   args: object;
@@ -107,6 +119,12 @@ export default async (args: {
       throw new Error(
         `Unknown tool: ${args.tool} (polarDocker does not support it yet)`,
       );
+    }
+
+    if (!readTools.has(args.tool)) {
+      await args.folder.assertAppOff({stage: 'before-tool'});
+
+      await assertNetworksFileWritable({folder: args.folder});
     }
 
     const result = await tools[args.tool]({

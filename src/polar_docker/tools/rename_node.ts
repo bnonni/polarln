@@ -147,10 +147,17 @@ export default async ({args, folder}: ToolArgs<RenameNodeArgs>) => {
     await stopNetwork({folder, network});
   }
 
-  await renameNodeDir(network, node, newName);
+  // The Polar app can start during the stop
+  await folder.assertAppOff({stage: 'before-delete'});
+
+  // The folder move needs the old name and the old TLS paths
+  const oldNode = structuredClone(node);
 
   renameInNetwork(network, node, newName);
 
+  // The folder move, the TLS delete, and the new compose file run in the
+  // save, so that a refused save does not change them. As in Polar, the
+  // folder move comes before the save.
   await changeNetworks({
     change: (networks, charts) => {
       const index = networks.findIndex(n => n.id === network.id);
@@ -164,9 +171,12 @@ export default async ({args, folder}: ToolArgs<RenameNodeArgs>) => {
       // The chart node keeps its position, as in Polar
       renameChartNode({charts, id: network.id, name: newName, nodeId: oldName});
     },
+    effect: async () => {
+      await renameNodeDir(network, oldNode, newName);
+      await saveComposeFile({folder, network});
+    },
     folder,
   });
-  await saveComposeFile({folder, network});
 
   if (wasStarted) {
     await startNetwork({folder, network});

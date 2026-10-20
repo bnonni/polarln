@@ -50,13 +50,20 @@ const removeLightningNode = async (args: Remove<LightningNode>) => {
 
   network.nodes.lightning = network.nodes.lightning.filter(n => n !== node);
 
-  // Polar removes the container only if the network is started
+  // Polar removes the container only if the network is started. If a check
+  // of the save refuses, the compose file still has the node, so the tool
+  // can run again.
   if (network.status === 'Started' || node.status !== 'Stopped') {
     await removeContainer({folder, network, node});
   }
 
-  await saveComposeFile({folder, network});
-  await saveNetwork({folder, network});
+  // The compose file write runs in the save, so that a refused save keeps
+  // the node in the compose file
+  await saveNetwork({
+    effect: () => saveComposeFile({folder, network}),
+    folder,
+    network,
+  });
 };
 
 // Remove a bitcoin node, and restart a started network without the node
@@ -116,8 +123,12 @@ const removeBitcoinNode = async (args: Remove<BitcoinNode>) => {
     await removeContainer({folder, network, node});
   }
 
-  await saveComposeFile({folder, network});
-  await saveNetwork({folder, network});
+  // The compose file write runs in the save, as for a lightning node
+  await saveNetwork({
+    effect: () => saveComposeFile({folder, network}),
+    folder,
+    network,
+  });
 };
 
 /** Remove a node and all of its data from a network

@@ -473,3 +473,47 @@ test('A change syncs the new file to the disk before the rename', () => {
     );
   });
 });
+
+test('A save effect runs just before the rename, and its failure keeps the file', () => {
+  return withPolarHome(async ({dataDir, file}) => {
+    const folder = folderOf({dataDir});
+    const before = await readFile(file, 'utf8');
+
+    let seen = '';
+
+    await changeNetworks({
+      change: networks => (networks[0].name = 'renamed'),
+      effect: async () => {
+        seen = await readFile(file, 'utf8');
+      },
+      folder,
+    });
+
+    equal(seen, before, 'The effect ran before the new file replaced it');
+
+    const changed = await readFile(file, 'utf8');
+
+    equal(JSON.parse(changed).networks[0].name, 'renamed', 'Got the change');
+
+    const failed = await rejection(
+      changeNetworks({
+        change: networks => (networks[0].name = 'again'),
+        effect: async () => {
+          throw new Error('EffectFailed');
+        },
+        folder,
+      }),
+    );
+
+    equal((failed as Error).message, 'EffectFailed', 'Got the error');
+    equal(await readFile(file, 'utf8'), changed, 'The file is the same');
+
+    deepStrictEqual(
+      (await readdir(join(dataDir, 'networks'))).filter(n =>
+        n.endsWith('.tmp'),
+      ),
+      [],
+      'No temporary file',
+    );
+  });
+});
