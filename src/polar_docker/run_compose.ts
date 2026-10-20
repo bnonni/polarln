@@ -67,7 +67,8 @@ export const composeError = (args: {
 
   @returns via Promise
   {
-    out: <Command Output String>
+    out: <Command Output String> // Standard output, else standard error
+    stdout: <Standard Output String>
   }
 */
 export default async ({
@@ -95,7 +96,10 @@ export default async ({
       },
     );
 
-    return {out: stripVTControlCharacters(stdout || stderr)};
+    return {
+      out: stripVTControlCharacters(stdout || stderr),
+      stdout: stripVTControlCharacters(stdout),
+    };
   } catch (err) {
     const hasDir = await stat(network.path).then(
       stats => stats.isDirectory(),

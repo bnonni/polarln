@@ -1,6 +1,5 @@
 import {deepStrictEqual} from 'node:assert/strict';
 import {equal} from 'node:assert/strict';
-import {createHash} from 'node:crypto';
 import {existsSync} from 'node:fs';
 import {readFileSync} from 'node:fs';
 import {writeFileSync} from 'node:fs';
@@ -14,7 +13,6 @@ import {createServer} from 'node:http';
 import type {AddressInfo} from 'node:net';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {relative} from 'node:path';
 import test from 'node:test';
 
 import type {Network} from '../../src/index.js';
@@ -29,6 +27,7 @@ import type {DockerCall} from '../fixtures/fake_docker_runner.js';
 import {fakeDockerRunner} from '../fixtures/fake_docker_runner.js';
 import {withPolarHome} from '../fixtures/polar_home.js';
 import {rejection} from '../fixtures/rejection.js';
+import {snapshot} from '../fixtures/snapshot.js';
 
 const hint =
   'The Polar app runs. polarln does not change the Polar files while the ' +
@@ -93,26 +92,6 @@ const makeBackend = (args: {
   });
 
   return {calls, polar};
-};
-
-// Get the sha256 of each file in a folder
-const snapshot = async (dir: string) => {
-  const entries = await readdir(dir, {recursive: true, withFileTypes: true});
-
-  const files = entries
-    .filter(n => n.isFile())
-    .map(n => join(n.parentPath, n.name))
-    .sort();
-
-  const hashes: [string, string][] = [];
-
-  for (const file of files) {
-    const hash = createHash('sha256').update(await readFile(file));
-
-    hashes.push([relative(dir, file), hash.digest('hex')]);
-  }
-
-  return hashes;
 };
 
 test('The read list has 16 tools, and 14 tools get the guard', () => {

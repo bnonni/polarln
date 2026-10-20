@@ -2,7 +2,7 @@
 // src/store/models/network.ts (updateBackendNode).
 
 import type {SetLightningBackendArgs} from '../../polar_methods/index.js';
-import assertNetworkPath from '../assert_network_path.js';
+import assertComposeWritable from '../assert_compose_writable.js';
 import {saveComposeFile} from '../network_actions.js';
 import {networkById} from '../network_file.js';
 import {saveNetwork} from '../network_file.js';
@@ -23,8 +23,9 @@ export default async ({args, folder}: ToolArgs<SetLightningBackendArgs>) => {
 
   const network = await networkById({folder, id: args.networkId});
 
-  // Check the network folder before the networks file changes
-  assertNetworkPath({folder, network});
+  // Check the network folder, the node kinds, and the compose services before
+  // the node stops and the networks file changes
+  await assertComposeWritable({folder, network});
 
   const lnName = args.lightningNodeName as string;
   const backendName = args.bitcoinNodeName as string;

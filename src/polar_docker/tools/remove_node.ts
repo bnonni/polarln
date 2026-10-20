@@ -7,6 +7,7 @@ import type {RemoveNodeArgs} from '../../polar_methods/index.js';
 import type {BitcoinNode} from '../../typescript/index.js';
 import type {LightningNode} from '../../typescript/index.js';
 import type {Network} from '../../typescript/index.js';
+import assertComposeWritable from '../assert_compose_writable.js';
 import assertNetworkPath from '../assert_network_path.js';
 import compareVersions from '../compare_versions.js';
 import {nodePath} from '../create_nodes.js';
@@ -145,6 +146,10 @@ export default async ({args, folder}: ToolArgs<RemoveNodeArgs>) => {
     message: `Network with ID ${args.networkId} not found`,
   });
 
+  // Check the network folder, the node kinds, and the compose services before
+  // any change
+  await assertComposeWritable({folder, network});
+
   const {bitcoin, lightning, tap} = network.nodes;
   const nodes = [...lightning, ...bitcoin, ...tap];
 
@@ -157,6 +162,7 @@ export default async ({args, folder}: ToolArgs<RemoveNodeArgs>) => {
     );
   }
 
+  // The compose check refuses tapd nodes, so this check only sets the type
   if (node.type === 'tap') {
     throw new Error('polarDocker does not support tapd nodes yet');
   }

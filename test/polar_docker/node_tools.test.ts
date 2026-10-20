@@ -27,10 +27,13 @@ import {updateNodeCommand} from '../../src/index.js';
 import type {LndNode} from '../../src/index.js';
 import type {Network} from '../../src/index.js';
 import type {PolarDocker} from '../../src/index.js';
+import type {CheckApp} from '../../src/polar_docker/data_folder.js';
 import makePolarDocker from '../../src/polar_docker/make_polar_docker.js';
 import {assertPolarLoadable} from '../fixtures/assert_polar_loadable.js';
 import {fakeDockerRunner} from '../fixtures/fake_docker_runner.js';
+import {withPolarHome} from '../fixtures/polar_home.js';
 import {rejection} from '../fixtures/rejection.js';
+import {snapshot} from '../fixtures/snapshot.js';
 
 const withDataDir = async (use: (dataDir: string) => Promise<void>) => {
   const dataDir = await mkdtemp(join(tmpdir(), 'polarln-docker-'));
@@ -566,6 +569,189 @@ test('A rename does not delete a TLS cert outside the network folder', () => {
       ],
       [[], before, true, true],
       'The file, the TLS cert, and the node folder are the same',
+    );
+  });
+});
+
+// The Polar app does not run, so the guard of the Polar home lets tools run
+const appOff: CheckApp = async () => ({runs: false});
+
+test('Node tools do not change a network that a new compose file breaks', () => {
+  return withPolarHome(async ({dataDir, file, home}) => {
+    const path = (id: number) => join(dataDir, 'networks', `${id}`);
+
+    // The services of the fixture compose files
+    const services: {[path: string]: string[]} = {
+      [path(1)]: ['backend1', 'alice', 'alice-tap'],
+      [path(2)]: ['backend1', 'alice', 'bob'],
+      [path(3)]: ['backend1', 'alice', 'electrs'],
+    };
+
+    // The fake docker runner answers only a compose config command
+    const {calls, docker} = fakeDockerRunner({
+      respond: ({args, cwd}) => {
+        if (args[3] !== 'config') {
+          throw new Error('UnexpectedDockerCommand');
+        }
+
+        return services[cwd as string].join('\n');
+      },
+    });
+
+    const {polar} = makePolarDocker({
+      checkApp: appOff,
+      dataDir,
+      docker,
+      env: {},
+      home,
+    });
+
+    const tools = (networkId: number) => [
+      {args: {implementation: 'LND', networkId}, tool: 'add_node'},
+      {args: {networkId, nodeName: 'alice'}, tool: 'remove_node'},
+      {
+        args: {networkId, newName: 'zed', oldName: 'alice'},
+        tool: 'rename_node',
+      },
+      {
+        args: {command: 'lnd', networkId, nodeName: 'alice'},
+        tool: 'update_node_command',
+      },
+      {
+        args: {
+          bitcoinNodeName: 'backend1',
+          lightningNodeName: 'alice',
+          networkId,
+        },
+        tool: 'set_lightning_backend',
+      },
+    ];
+
+    const notSupported = (kind: string, tool: string) => [
+      501,
+      'PolarToolNotSupported',
+      {err: `polarDocker does not support ${kind} nodes yet`, tool},
+    ];
+
+    const errors = [
+      {error: (tool: string) => notSupported('tapd', tool), networkId: 1},
+      {error: (tool: string) => notSupported('litd', tool), networkId: 2},
+      {
+        error: () => [
+          409,
+          'ComposeFileHasOtherServices',
+          {
+            networkId: 3,
+            path: join(path(3), 'docker-compose.yml'),
+            services: ['electrs'],
+          },
+        ],
+        networkId: 3,
+      },
+    ];
+
+    const before = await snapshot(home);
+
+    for (const {error, networkId} of errors) {
+      for (const {args, tool} of tools(networkId)) {
+        deepStrictEqual(
+          await rejection(polar.execute(tool, args)),
+          error(tool),
+          `${tool} on network ${networkId} gives the error`,
+        );
+      }
+    }
+
+    deepStrictEqual(await snapshot(home), before, 'The files are the same');
+
+    deepStrictEqual(
+      [
+        existsSync(file),
+        existsSync(join(path(1), 'volumes', 'lnd', 'alice', 'tls.cert')),
+      ],
+      [true, true],
+      'The networks file and the TLS cert are there',
+    );
+
+    const config = {
+      args: [
+        'compose',
+        '-f',
+        join(path(3), 'docker-compose.yml'),
+        'config',
+        '--services',
+      ],
+      cwd: path(3),
+    };
+
+    deepStrictEqual(
+      calls,
+      [config, config, config, config, config],
+      'Only the compose config command of network 3 ran',
+    );
+  });
+});
+
+test('The compose check reads a compose file of polarDocker itself', () => {
+  return withDataDir(async dataDir => {
+    const {calls, docker} = fakeDockerRunner({respond: () => 'backend1\nx'});
+
+    const {polar} = makePolarDocker({
+      dataDir,
+      docker,
+      env: {},
+      home: join(dataDir, 'home'),
+    });
+
+    const {network} = await createNetwork({name: 'n', polar});
+
+    const path = join(network.path, 'docker-compose.yml');
+    const json = JSON.parse(await readFile(path, 'utf8'));
+
+    // A compose file with no service for alice and an added service
+    const {alice: _alice, ...services} = json.services;
+
+    await writeFile(
+      path,
+      JSON.stringify({...json, services: {...services, x: {}}}),
+    );
+
+    const update = () =>
+      polar.execute('update_node_command', {
+        command: 'lnd',
+        networkId: 1,
+        nodeName: 'alice',
+      });
+
+    const otherServices = [
+      409,
+      'ComposeFileHasOtherServices',
+      {networkId: 1, path, services: ['x']},
+    ];
+
+    deepStrictEqual(await rejection(update()), otherServices, 'Got the error');
+    equal(calls.length, 0, 'The check read the JSON file');
+
+    // A compose file with other keys goes to docker compose
+    await writeFile(path, JSON.stringify({...json, volumes: {}}));
+
+    deepStrictEqual(await rejection(update()), otherServices, 'Got the error');
+
+    deepStrictEqual(
+      calls.map(({args}) => args.slice(3)),
+      [['config', '--services']],
+      'The check ran docker compose config',
+    );
+
+    // A compose file with no service for a node gets the service
+    await writeFile(path, JSON.stringify({...json, services}));
+
+    await update();
+
+    deepStrictEqual(
+      Object.keys(JSON.parse(await readFile(path, 'utf8')).services),
+      ['backend1', 'alice', 'bob'],
+      'The new compose file has all nodes',
     );
   });
 });

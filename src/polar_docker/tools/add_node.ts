@@ -2,7 +2,7 @@
 // src/store/models/network.ts (addNode).
 
 import type {AddNodeArgs} from '../../polar_methods/index.js';
-import assertNetworkPath from '../assert_network_path.js';
+import assertComposeWritable from '../assert_compose_writable.js';
 import {addBitcoindNode} from '../create_nodes.js';
 import {addLndNode} from '../create_nodes.js';
 import {polarImplementations} from '../docker_configs.js';
@@ -41,8 +41,9 @@ export default async ({args, folder}: ToolArgs<AddNodeArgs>) => {
     message: `Network with ID ${args.networkId} not found`,
   });
 
-  // Check the network folder before the networks file changes
-  assertNetworkPath({folder, network});
+  // Check the network folder, the node kinds, and the compose services before
+  // the networks file changes
+  await assertComposeWritable({folder, network});
 
   const {latest, versions} = repoState[implementation];
 
