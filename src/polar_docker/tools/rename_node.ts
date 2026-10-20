@@ -10,6 +10,7 @@ import {rm} from 'node:fs/promises';
 import type {RenameNodeArgs} from '../../polar_methods/index.js';
 import type {Network} from '../../typescript/index.js';
 import type {PolarNode} from '../../typescript/index.js';
+import assertNetworkPath from '../assert_network_path.js';
 import {lndPaths} from '../create_nodes.js';
 import {nodePath} from '../create_nodes.js';
 import type {DockerImplementation} from '../docker_configs.js';
@@ -25,6 +26,17 @@ import {validateRequired} from './validate.js';
 
 const typeNames = {bitcoin: 'Bitcoin', lightning: 'Lightning'};
 
+// Get the TLS files to delete, as lnd makes a new TLS cert for a new host name
+const tlsFiles = (node: PolarNode) => {
+  if (node.implementation !== 'LND') {
+    return [];
+  }
+
+  const cert = node.paths.tlsCert;
+
+  return [cert, cert.replace('.cert', '.key')];
+};
+
 // Move the data directory of a node to the new name
 const renameNodeDir = async (
   network: Network,
@@ -34,12 +46,8 @@ const renameNodeDir = async (
   const implementation = node.implementation as DockerImplementation;
   const oldPath = nodePath(network, implementation, node.name);
 
-  // lnd makes a new TLS cert for the new host name
-  if (node.implementation === 'LND') {
-    const cert = node.paths.tlsCert;
-
-    await rm(cert, {force: true});
-    await rm(cert.replace('.cert', '.key'), {force: true});
+  for (const file of tlsFiles(node)) {
+    await rm(file, {force: true});
   }
 
   if (existsSync(oldPath)) {
@@ -118,6 +126,19 @@ export default async ({args, folder}: ToolArgs<RenameNodeArgs>) => {
   if (node.type === 'tap') {
     throw new Error('polarDocker does not support tapd nodes yet');
   }
+
+  const implementation = node.implementation as DockerImplementation;
+
+  // A copy of a data folder must not change the folders of the original
+  assertNetworkPath({
+    folder,
+    network,
+    paths: [
+      nodePath(network, implementation, node.name),
+      nodePath(network, implementation, newName),
+      ...tlsFiles(node),
+    ],
+  });
 
   const oldName = node.name;
   const wasStarted = node.status === 'Started';

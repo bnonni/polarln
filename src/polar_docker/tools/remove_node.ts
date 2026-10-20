@@ -7,6 +7,7 @@ import type {RemoveNodeArgs} from '../../polar_methods/index.js';
 import type {BitcoinNode} from '../../typescript/index.js';
 import type {LightningNode} from '../../typescript/index.js';
 import type {Network} from '../../typescript/index.js';
+import assertNetworkPath from '../assert_network_path.js';
 import compareVersions from '../compare_versions.js';
 import {nodePath} from '../create_nodes.js';
 import type {DataFolder} from '../data_folder.js';
@@ -149,19 +150,22 @@ export default async ({args, folder}: ToolArgs<RemoveNodeArgs>) => {
     throw new Error('polarDocker does not support tapd nodes yet');
   }
 
+  const dir = nodePath(
+    network,
+    node.implementation as DockerImplementation,
+    node.name,
+  );
+
+  // A copy of a data folder must not change the folders of the original
+  assertNetworkPath({folder, network, paths: [dir]});
+
   if (node.type === 'bitcoin') {
     await removeBitcoinNode({folder, network, node});
   } else {
     await removeLightningNode({folder, network, node});
   }
 
-  await rm(
-    nodePath(network, node.implementation as DockerImplementation, node.name),
-    {
-      force: true,
-      recursive: true,
-    },
-  );
+  await rm(dir, {force: true, recursive: true});
 
   return {
     success: true,

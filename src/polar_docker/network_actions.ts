@@ -7,6 +7,7 @@ import {join} from 'node:path';
 
 import type {Network} from '../typescript/index.js';
 import type {PolarNode} from '../typescript/index.js';
+import assertNetworkPath from './assert_network_path.js';
 import composeFile from './compose_file.js';
 import {nodePath} from './create_nodes.js';
 import type {DataFolder} from './data_folder.js';
@@ -40,10 +41,16 @@ const allNodes = (network: Network): PolarNode[] => {
 
 /** Save the docker compose file of a network
 
+  The network folder must be in the data folder.
+
   {
     folder: <Data Folder Object>
     network: <Network Object>
   }
+
+  @throws
+  [409, 'NetworkPathOutsideDataFolder', {expected, networkId, path}]
+  <Error>
 
   @returns via Promise
 */
@@ -54,6 +61,8 @@ export const saveComposeFile = async ({
   folder: DataFolder;
   network: Network;
 }) => {
+  assertNetworkPath({folder, network});
+
   await mkdir(network.path, {recursive: true});
 
   await writeFile(
@@ -67,7 +76,8 @@ export const saveComposeFile = async ({
   Move the ports that a different program uses, save the compose file, and
   make the volume directories, so that the host user owns them. If a port
   moves, the network is saved with its statuses. Polar also checks the ports
-  before the statuses change, so a Started node keeps its ports.
+  before the statuses change, so a Started node keeps its ports. The volume
+  directories must be in the network folder.
 
   {
     folder: <Data Folder Object>
@@ -77,6 +87,7 @@ export const saveComposeFile = async ({
   }
 
   @throws
+  [409, 'NetworkPathOutsideDataFolder', {expected, networkId, path}]
   <Error>
 
   @returns via Promise
@@ -104,12 +115,16 @@ export const prepareStart = async ({
 
   await saveComposeFile({folder, network});
 
-  for (const node of nodes) {
+  const dirs = nodes.map(node => {
     const implementation = node.implementation as DockerImplementation;
 
-    await mkdir(nodePath(network, implementation, node.name), {
-      recursive: true,
-    });
+    return nodePath(network, implementation, node.name);
+  });
+
+  assertNetworkPath({folder, network, paths: dirs});
+
+  for (const dir of dirs) {
+    await mkdir(dir, {recursive: true});
   }
 };
 
@@ -132,6 +147,7 @@ export const prepareStart = async ({
   }
 
   @throws
+  [409, 'NetworkPathOutsideDataFolder', {expected, networkId, path}]
   <Error>
 
   @returns via Promise
@@ -149,6 +165,9 @@ export const startNetwork = async ({
 
   // Do not start containers if the save after the start cannot write
   await assertNetworksFileWritable({folder});
+
+  // A copy of a data folder must not start the containers of the original
+  assertNetworkPath({folder, network});
 
   try {
     await prepareStart({folder, network, nodes: allNodes(network), steps});
@@ -191,6 +210,7 @@ export const startNetwork = async ({
   }
 
   @throws
+  [409, 'NetworkPathOutsideDataFolder', {expected, networkId, path}]
   <Error>
 
   @returns via Promise
@@ -208,6 +228,9 @@ export const stopNetwork = async ({
 
   // Do not stop containers if the save after the stop cannot write
   await assertNetworksFileWritable({folder});
+
+  // A copy of a data folder must not stop the containers of the original
+  assertNetworkPath({folder, network});
 
   network.autoMineMode = 0;
 

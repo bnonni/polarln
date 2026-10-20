@@ -3,6 +3,7 @@
 
 import type {Network} from '../typescript/index.js';
 import type {PolarNode} from '../typescript/index.js';
+import assertNetworkPath from './assert_network_path.js';
 import type {DataFolder} from './data_folder.js';
 import type {ActionSteps} from './network_actions.js';
 import {actionSteps} from './network_actions.js';
@@ -39,6 +40,7 @@ const asError = (err: unknown) =>
   }
 
   @throws
+  [409, 'NetworkPathOutsideDataFolder', {expected, networkId, path}]
   <Error>
 
   @returns via Promise
@@ -53,6 +55,9 @@ export const startNode = async ({
 
   // Do not start the container if the save after the start cannot write
   await assertNetworksFileWritable({folder});
+
+  // A copy of a data folder must not start the containers of the original
+  assertNetworkPath({folder, network});
 
   try {
     await prepareStart({folder, network, nodes: [node], steps});
@@ -94,6 +99,7 @@ export const startNode = async ({
   }
 
   @throws
+  [409, 'NetworkPathOutsideDataFolder', {expected, networkId, path}]
   <Error>
 
   @returns via Promise
@@ -108,6 +114,9 @@ export const stopNode = async ({
 
   // Do not stop the container if the save after the stop cannot write
   await assertNetworksFileWritable({folder});
+
+  // A copy of a data folder must not stop the containers of the original
+  assertNetworkPath({folder, network});
 
   // The Stopping status stays in memory, as in the Polar app
   setStatus({network, only: node.name, status: 'Stopping'});
@@ -138,11 +147,14 @@ export const stopNode = async ({
   }
 
   @throws
+  [409, 'NetworkPathOutsideDataFolder', {expected, networkId, path}]
   <Error>
 
   @returns via Promise
 */
 export const removeContainer = async ({folder, network, node}: Args) => {
+  assertNetworkPath({folder, network});
+
   await runCompose({args: ['stop', node.name], folder, network});
   await runCompose({args: ['rm', '-f', node.name], folder, network});
 };

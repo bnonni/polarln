@@ -51,23 +51,32 @@ export const runDocker: DockerRunner = (args, options) =>
 
 /** Get the data folder object of a data directory
 
-  The data folder is not the Polar app data directory, so the containers get
-  the polarln prefix and the Polar app check does nothing
+  In the Polar app data directory, the containers and the compose projects
+  get the Polar names: polar-n<id>-<name> and polar-network-<id>. In a
+  different data directory, they get the polarln prefix, so that they do not
+  use the names of the Polar app containers. The Polar app check does nothing.
 
   {
     dataDir: <Resolved Data Directory Path String>
     [docker]: <Run the docker Program Function> // Default: runDocker
+    [isPolarHome]: <Data Directory Is the Polar App Data Directory Bool>
   }
 
   @returns
   <Data Folder Object>
 */
-export default (args: {dataDir: string; docker?: DockerRunner}): DataFolder => {
+export default (args: {
+  dataDir: string;
+  docker?: DockerRunner;
+  isPolarHome?: boolean;
+}): DataFolder => {
+  const isPolarHome = !!args.isPolarHome;
+
   return {
     assertAppOff: async () => {},
     dataDir: args.dataDir,
     docker: args.docker || runDocker,
-    isPolarHome: false,
-    prefix: 'polarln',
+    isPolarHome,
+    prefix: isPolarHome ? 'polar' : 'polarln',
   };
 };

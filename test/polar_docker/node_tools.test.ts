@@ -439,6 +439,137 @@ test('A node with the Error status can be stopped', () => {
   });
 });
 
+test('Node tools do not change a network folder outside the data folder', () => {
+  return withDataDir(async dataDir => {
+    const {calls, docker} = fakeDockerRunner();
+
+    const {polar} = makePolarDocker({
+      dataDir,
+      docker,
+      env: {},
+      home: join(dataDir, 'home'),
+    });
+
+    await createNetwork({name: 'n', polar});
+
+    await addNode({implementation: 'bitcoind', networkId: 1, polar});
+
+    // A copied data folder has the network folders of the original folder
+    const outside = join(dataDir, 'original', 'networks', '1');
+    const cert = join(outside, 'volumes', 'lnd', 'alice', 'tls.cert');
+
+    await mkdir(dirname(cert), {recursive: true});
+    await writeFile(cert, 'cert');
+
+    const json = JSON.parse(await readFile(networksFile(dataDir), 'utf8'));
+
+    json.networks[0].path = outside;
+
+    await writeFile(networksFile(dataDir), JSON.stringify(json, null, 2));
+
+    const before = await readFile(networksFile(dataDir), 'utf8');
+
+    const tools = [
+      {args: {implementation: 'LND', networkId: 1}, tool: 'add_node'},
+      {args: {networkId: 1, nodeName: 'bob'}, tool: 'remove_node'},
+      {
+        args: {networkId: 1, newName: 'zed', oldName: 'alice'},
+        tool: 'rename_node',
+      },
+      {
+        args: {command: 'lnd', networkId: 1, nodeName: 'alice'},
+        tool: 'update_node_command',
+      },
+      {
+        args: {
+          bitcoinNodeName: 'backend2',
+          lightningNodeName: 'alice',
+          networkId: 1,
+        },
+        tool: 'set_lightning_backend',
+      },
+      {args: {networkId: 1, nodeName: 'alice'}, tool: 'start_node'},
+    ];
+
+    for (const {args, tool} of tools) {
+      deepStrictEqual(
+        await rejection(polar.execute(tool, args)),
+        [
+          409,
+          'NetworkPathOutsideDataFolder',
+          {
+            expected: join(dataDir, 'networks', '1'),
+            networkId: 1,
+            path: outside,
+          },
+        ],
+        `${tool} gives the error`,
+      );
+    }
+
+    deepStrictEqual(calls, [], 'No docker command ran');
+
+    deepStrictEqual(
+      [await readFile(networksFile(dataDir), 'utf8'), existsSync(cert)],
+      [before, true],
+      'The file and the TLS cert are the same',
+    );
+  });
+});
+
+test('A rename does not delete a TLS cert outside the network folder', () => {
+  return withDataDir(async dataDir => {
+    const {calls, docker} = fakeDockerRunner();
+
+    const {polar} = makePolarDocker({
+      dataDir,
+      docker,
+      env: {},
+      home: join(dataDir, 'home'),
+    });
+
+    const {network} = await createNetwork({name: 'n', polar});
+
+    const alice = network.nodes.lightning[0] as LndNode;
+    const cert = join(dataDir, 'original', 'tls.cert');
+
+    await mkdir(dirname(alice.paths.tlsCert), {recursive: true});
+    await mkdir(dirname(cert), {recursive: true});
+    await writeFile(cert, 'cert');
+
+    const json = JSON.parse(await readFile(networksFile(dataDir), 'utf8'));
+
+    json.networks[0].nodes.lightning[0].paths.tlsCert = cert;
+
+    await writeFile(networksFile(dataDir), JSON.stringify(json, null, 2));
+
+    const before = await readFile(networksFile(dataDir), 'utf8');
+
+    deepStrictEqual(
+      await rejection(
+        renameNode({networkId: 1, newName: 'zed', oldName: 'alice', polar}),
+      ),
+      [
+        409,
+        'NetworkPathOutsideDataFolder',
+        {expected: network.path, networkId: 1, path: cert},
+      ],
+      'Got the error',
+    );
+
+    deepStrictEqual(
+      [
+        calls,
+        await readFile(networksFile(dataDir), 'utf8'),
+        existsSync(cert),
+        existsSync(dirname(alice.paths.tlsCert)),
+      ],
+      [[], before, true, true],
+      'The file, the TLS cert, and the node folder are the same',
+    );
+  });
+});
+
 test('Node versions and default commands can be listed', async () => {
   const {polar} = polarDocker({dataDir: join(tmpdir(), 'polarln-unused')});
 

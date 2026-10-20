@@ -4,6 +4,7 @@
 import {rm} from 'node:fs/promises';
 
 import type {DeleteNetworkArgs} from '../../polar_methods/index.js';
+import assertNetworkPath from '../assert_network_path.js';
 import {stopNetwork} from '../network_actions.js';
 import {changeNetworks} from '../network_file.js';
 import {networkById} from '../network_file.js';
@@ -18,6 +19,9 @@ export default async ({args, folder}: ToolArgs<DeleteNetworkArgs>) => {
   validateNetworkId(args.networkId);
 
   const network = await networkById({folder, id: args.networkId});
+
+  // A copy of a data folder must not delete the folder of the original
+  assertNetworkPath({folder, network});
 
   const before = structuredClone(network);
 

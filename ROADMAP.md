@@ -50,7 +50,7 @@ Next phases:
 
 ### Docker backend follow-ups
 
-1. Docker names for each data directory. The container names (`polarln-n<id>-<name>`) and the compose project name come from the network id only. Thus, networks with the same id in 2 data directories use the same containers. See `src/polar_docker/node_names.ts` and `src/polar_docker/compose_file.ts`.
+1. Docker names for each data directory. In the Polar app data directory, the containers are `polar-n<id>-<name>` and the compose project is `polar-network-<id>`, as in the Polar app. In a different data directory, the names (`polarln-n<id>-<name>`) come from the network id only. Thus, networks with the same id in 2 such data directories use the same containers. See `src/polar_docker/node_names.ts` and `src/polar_docker/compose_file.ts`.
 2. A timeout for each `docker compose` command. Now a stuck `docker` command blocks the tool with no limit (`src/polar_docker/run_compose.ts`).
 3. Global CLI flags before the command, for example `polarln --backend docker list-networks`. Now this is the usage error `ExpectedCommandBeforeFlags`.
 

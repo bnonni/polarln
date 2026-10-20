@@ -13,6 +13,11 @@ export type PolarDockerArgs = {
   The backend runs the Polar tools on Docker, without the Polar app. It uses
   the Polar Docker images and the Polar v4.0.0 compose templates.
 
+  In a data directory of the Polar app (~/.local/share/polar or ~/.polar),
+  the containers are polar-n<id>-<name> and the compose projects are
+  polar-network-<id>, as in the Polar app. In a different data directory, the
+  names start with polarln.
+
   The backend supports bitcoind and LND nodes and these tools:
   - Network tools: list_networks, create_network, start_network, stop_network,
     delete_network, and rename_network

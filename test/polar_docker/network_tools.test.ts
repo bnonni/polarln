@@ -5,12 +5,14 @@ import {mkdir} from 'node:fs/promises';
 import {mkdtemp} from 'node:fs/promises';
 import {readFile} from 'node:fs/promises';
 import {rm} from 'node:fs/promises';
+import {writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import test from 'node:test';
 
 import {createNetwork} from '../../src/index.js';
 import {deleteNetwork} from '../../src/index.js';
+import type {Network} from '../../src/index.js';
 import {listNetworks} from '../../src/index.js';
 import {polarDocker} from '../../src/index.js';
 import {renameNetwork} from '../../src/index.js';
@@ -20,6 +22,7 @@ import makePolarDocker from '../../src/polar_docker/make_polar_docker.js';
 import {initChartFromNetwork} from '../../src/polar_docker/polar_chart.js';
 import {assertPolarLoadable} from '../fixtures/assert_polar_loadable.js';
 import {fakeDockerRunner} from '../fixtures/fake_docker_runner.js';
+import {withPolarHome} from '../fixtures/polar_home.js';
 import {rejection} from '../fixtures/rejection.js';
 
 const withDataDir = async (use: (dataDir: string) => Promise<void>) => {
@@ -156,6 +159,130 @@ test('The internal maker gets the data directory from its arguments', () => {
     [join(home, '.polarln'), '/tmp/e', join(process.cwd(), 'x')],
     'The argument comes first, then the environment, then the home',
   );
+});
+
+// Get the compose project name and the container names of a network
+const composeNames = async (network: Network) => {
+  const file = await readFile(join(network.path, 'docker-compose.yml'), 'utf8');
+
+  const {name, services} = JSON.parse(file) as {
+    name: string;
+    services: {[service: string]: {container_name: string}};
+  };
+
+  return {
+    containers: Object.values(services).map(n => n.container_name),
+    project: name,
+  };
+};
+
+test('The Polar home gets the container names of the Polar app', () => {
+  return withPolarHome(async ({dataDir, file, home}) => {
+    const {calls, docker} = fakeDockerRunner();
+
+    const {polar} = makePolarDocker({dataDir, docker, env: {}, home});
+
+    const {network} = await createNetwork({name: 'n', polar});
+
+    deepStrictEqual(
+      await composeNames(network),
+      {
+        containers: ['polar-n4-backend1', 'polar-n4-alice', 'polar-n4-bob'],
+        project: 'polar-network-4',
+      },
+      'Got the Polar names',
+    );
+
+    deepStrictEqual(calls, [], 'The create runs no docker command');
+
+    await assertPolarLoadable(file);
+  });
+});
+
+test('A different data folder gets the polarln container names', () => {
+  return withDataDir(async dataDir => {
+    const {docker} = fakeDockerRunner();
+
+    const {polar} = makePolarDocker({
+      dataDir,
+      docker,
+      env: {},
+      home: join(dataDir, 'home'),
+    });
+
+    const {network} = await createNetwork({name: 'n', polar});
+
+    deepStrictEqual(
+      await composeNames(network),
+      {
+        containers: [
+          'polarln-n1-backend1',
+          'polarln-n1-alice',
+          'polarln-n1-bob',
+        ],
+        project: 'polarln-network-1',
+      },
+      'Got the polarln names',
+    );
+  });
+});
+
+test('A network folder outside the data folder does not change', () => {
+  return withPolarHome(async ({dataDir, file, home}) => {
+    const {calls, docker} = fakeDockerRunner();
+
+    // A copied home has the network folders of the original home
+    const outside = join(home, 'original', 'networks', '3');
+    const inside = join(dataDir, 'networks', '3');
+
+    await mkdir(join(outside, 'volumes', 'lnd', 'alice'), {recursive: true});
+    await writeFile(join(outside, 'docker-compose.yml'), 'original');
+    await writeFile(join(outside, 'volumes', 'lnd', 'alice', 'tls.cert'), 'x');
+
+    const json = JSON.parse(await readFile(file, 'utf8'));
+
+    json.networks[2].path = outside;
+
+    await writeFile(file, JSON.stringify(json, null, 2));
+
+    const before = await readFile(file, 'utf8');
+
+    const {polar} = makePolarDocker({dataDir, docker, env: {}, home});
+
+    const tools = [
+      {args: {networkId: 3}, tool: 'start_network'},
+      {args: {networkId: 3}, tool: 'stop_network'},
+      {args: {networkId: 3}, tool: 'delete_network'},
+      {args: {networkId: 3, nodeName: 'alice'}, tool: 'start_node'},
+    ];
+
+    for (const {args, tool} of tools) {
+      deepStrictEqual(
+        await rejection(polar.execute(tool, args)),
+        [
+          409,
+          'NetworkPathOutsideDataFolder',
+          {expected: inside, networkId: 3, path: outside},
+        ],
+        `${tool} gives the error`,
+      );
+    }
+
+    deepStrictEqual(calls, [], 'No docker command ran');
+
+    equal(await readFile(file, 'utf8'), before, 'The file is the same');
+
+    deepStrictEqual(
+      [
+        await readFile(join(outside, 'docker-compose.yml'), 'utf8'),
+        existsSync(join(outside, 'volumes', 'lnd', 'alice', 'tls.cert')),
+        existsSync(join(inside, 'docker-compose.yml')),
+        existsSync(join(inside, 'volumes', 'lnd', 'alice', 'tls.cert')),
+      ],
+      ['original', true, true, true],
+      'The folders are the same',
+    );
+  });
 });
 
 test('A network stops with the docker runner of the data folder', () => {
