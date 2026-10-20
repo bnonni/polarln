@@ -1,4 +1,5 @@
 import errorFromPolar from '../polar_bridge/error_from_polar.js';
+import type {DockerToolName} from './docker_tool_names.js';
 import addNode from './tools/add_node.js';
 import closeChannel from './tools/close_channel.js';
 import createInvoice from './tools/create_invoice.js';
@@ -34,7 +35,7 @@ import type {ToolArgs} from './tools/types.js';
 type Tool = (args: ToolArgs<any>) => Promise<unknown>;
 
 /** Polar Tools That the Docker Backend Supports */
-export const dockerTools: {[name: string]: Tool} = {
+export const dockerTools: {[name in DockerToolName]: Tool} = {
   add_node: addNode,
   close_channel: closeChannel,
   create_invoice: createInvoice,
@@ -90,7 +91,7 @@ export default async (args: {args: object; dataDir: string; tool: string}) => {
       );
     }
 
-    const result = await dockerTools[args.tool]({
+    const result = await dockerTools[args.tool as DockerToolName]({
       args: args.args,
       dataDir: args.dataDir,
     });

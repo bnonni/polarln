@@ -5,6 +5,8 @@ import test from 'node:test';
 import bundledTools from '../../src/polar_cli/bundled_tools.js';
 import {flagName} from '../../src/polar_cli/names.js';
 import {globalOptions} from '../../src/polar_cli/parse_flags.js';
+import {dockerToolNames} from '../../src/polar_docker/docker_tool_names.js';
+import {dockerTools} from '../../src/polar_docker/execute_tool.js';
 
 test('The bundled tools have unique names and valid schemas', () => {
   const names = bundledTools.map(({name}) => name);
@@ -37,4 +39,15 @@ test('No tool flag uses the name of a global flag', () => {
       name,
     );
   });
+});
+
+test('The bundled tools contain each docker tool', () => {
+  const names = bundledTools.map(({name}) => name);
+
+  deepStrictEqual(
+    dockerToolNames.filter(name => !names.includes(name)),
+    [],
+  );
+
+  deepStrictEqual(Object.keys(dockerTools).sort(), [...dockerToolNames]);
 });
