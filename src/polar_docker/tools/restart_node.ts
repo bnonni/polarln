@@ -25,7 +25,7 @@ export default async ({args, dataDir}: ToolArgs<RestartNodeArgs>) => {
 
   const node = findNode({network, nodeName: args.nodeName});
 
-  if (!['Error', 'Locked', 'Started'].includes(node.status)) {
+  if (node.status !== 'Error' && node.status !== 'Started') {
     throw new Error(
       `Cannot restart node "${args.nodeName}". Node is currently ${node.status}. ` +
         'Only Started or Error nodes can be restarted.',

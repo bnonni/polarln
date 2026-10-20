@@ -11,12 +11,30 @@ import setStatus from './set_status.js';
 import {AbortWaitError} from './wait_for.js';
 import {delay} from './wait_for.js';
 
+/** Node Services That the Startup Wait Uses */
+export type StartupServices = {
+  bitcoind: Pick<
+    typeof bitcoind,
+    'connectPeers' | 'createDefaultWallet' | 'mine' | 'waitUntilOnline'
+  >;
+  lnd: Pick<typeof lnd, 'connectPeers' | 'getInfo' | 'waitUntilOnline'>;
+};
+
 const asError = (err: unknown) =>
   err instanceof Error ? err : new Error(String(err));
 const mineDelayMs = 2000;
 
+// Polar v4.0.0 has no Locked status, so a wallet that stays locked is an error
+const walletErrors: {[reason: string]: string} = {
+  'wallet-locked': 'The LND wallet is locked',
+  'wallet-not-initialized': 'The LND wallet does not exist',
+};
+
 // Connect each lightning node to all of the others, so each node knows the graph
-const connectAllPeers = async (nodes: LndNode[]) => {
+const connectAllPeers = async (
+  nodes: LndNode[],
+  lnd: StartupServices['lnd'],
+) => {
   const infos = await Promise.all(
     nodes.map(n => lnd.getInfo(n).catch(() => undefined)),
   );
@@ -39,11 +57,13 @@ const connectAllPeers = async (nodes: LndNode[]) => {
 
   After the bitcoind nodes are online, mine 1 block. After the LND nodes are
   online, connect all of the LND nodes of the network to each other. A node
-  that does not start gets the Error status.
+  that does not start gets the Error status. An LND node with a wallet that
+  stays locked also gets the Error status, with an error message.
 
   {
     network: <Network Object>
     [nodes]: [<Started Node Object>] // Default: all bitcoind and LND nodes
+    [services]: <Node Services Object> // Default: the bitcoind and LND RPC
   }
 
   @returns via Promise
@@ -51,9 +71,11 @@ const connectAllPeers = async (nodes: LndNode[]) => {
 export default async ({
   network,
   nodes,
+  services = {bitcoind, lnd},
 }: {
   network: Network;
   nodes?: PolarNode[];
+  services?: StartupServices;
 }) => {
   const started = nodes || [
     ...network.nodes.bitcoin,
@@ -67,24 +89,26 @@ export default async ({
     setStatus({error, network, only: name, status});
 
   const btcOnline = bitcoin.map(node => {
-    return bitcoind
+    return services.bitcoind
       .waitUntilOnline(node)
       .then(async () => {
         setNode(node.name, 'Started');
 
-        await bitcoind.connectPeers(node);
-        await bitcoind.createDefaultWallet(node);
+        await services.bitcoind.connectPeers(node);
+        await services.bitcoind.createDefaultWallet(node);
       })
       .catch(err => setNode(node.name, 'Error', asError(err)));
   });
 
   const lnOnline = lndNodes.map(node => {
-    return lnd
+    return services.lnd
       .waitUntilOnline(node)
       .then(() => setNode(node.name, 'Started'))
       .catch(err => {
         if (err instanceof AbortWaitError) {
-          return setNode(node.name, 'Locked');
+          const message = walletErrors[err.message] || err.message;
+
+          return setNode(node.name, 'Error', new Error(message));
         }
 
         return setNode(node.name, 'Error', asError(err));
@@ -94,7 +118,7 @@ export default async ({
   if (!!btcOnline.length) {
     await Promise.all(btcOnline);
     await delay(mineDelayMs);
-    await bitcoind
+    await services.bitcoind
       .mine({blocks: 1, node: network.nodes.bitcoin[0]})
       .catch(() => {});
   }
@@ -103,6 +127,7 @@ export default async ({
     await Promise.all(lnOnline);
     await connectAllPeers(
       network.nodes.lightning.filter(n => n.implementation === 'LND'),
+      services.lnd,
     );
   }
 };

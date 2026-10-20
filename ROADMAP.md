@@ -31,7 +31,7 @@ Spike results (Bitcoin Core v30.0, LND v0.20.0-beta):
 6. LND sends the `SUCCEEDED` payment status before the commitment update ends on the receiver. The receiver balance changes after that.
 7. The container names are `polarln-n<id>-<name>`. Each port is the first free port at or above the Polar base port. The spike ran next to 2 started Polar networks with no conflict.
 8. Under Node, `@grpc/grpc-js` prints the `DEP0123` warning if the socket host is an IP address. The spike uses `localhost`, as `getNodeCredentials` does.
-9. With `--noseedbackup`, lnd shows the `LOCKED` wallet state for a short time after a restart. Then it unlocks the wallet itself. Polar sets the `Locked` status at the first `LOCKED` state. `polarDocker` sets the `Locked` status only if the state stays for 5 s.
+9. With `--noseedbackup`, lnd shows the `LOCKED` wallet state for a short time after a restart. Then it unlocks the wallet itself. Polar v4.0.0 has no `Locked` status. Polar calls `getInfo` until it works, and after 120 s it sets the `Error` status. `polarDocker` sets the `Error` status with the message "The LND wallet is locked" if the `LOCKED` state stays for 5 s.
 
 Next phases:
 

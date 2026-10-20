@@ -8,8 +8,7 @@ import type {PolarNode} from '../typescript/index.js';
 /** New Host Ports for Each Node Name */
 export type OpenPorts = {[name: string]: {[port: string]: number}};
 
-const isRunning = (n: PolarNode) =>
-  n.status === 'Started' || n.status === 'Locked';
+const isRunning = (n: PolarNode) => n.status === 'Started';
 const maxPort = 65535;
 
 // Docker publishes a port on all IPv4 and IPv6 addresses

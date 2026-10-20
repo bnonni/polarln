@@ -117,7 +117,7 @@ export default async ({args, dataDir}: ToolArgs<RenameNodeArgs>) => {
     throw new Error('polarDocker does not support tapd nodes yet');
   }
 
-  const wasStarted = node.status === 'Started' || node.status === 'Locked';
+  const wasStarted = node.status === 'Started';
 
   if (wasStarted) {
     await stopNetwork({dataDir, network});

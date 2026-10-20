@@ -14,14 +14,12 @@ export type NodeImplementation =
   | 'LND'
   | 'tapd';
 
-/** Network or Node Status (the bridge sends the label, not the number) */
-export type Status =
-  | 'Error'
-  | 'Locked'
-  | 'Started'
-  | 'Starting'
-  | 'Stopped'
-  | 'Stopping';
+/** Network or Node Status (the bridge sends the label, not the number)
+
+  Polar v4.0.0 has 5 statuses: Starting 0, Started 1, Stopping 2, Stopped 3,
+  and Error 4
+*/
+export type Status = 'Error' | 'Started' | 'Starting' | 'Stopped' | 'Stopping';
 
 type CommonNode = {
   /** Docker Image and Command Overrides (empty string is the default) */

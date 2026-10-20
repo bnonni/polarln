@@ -8,7 +8,12 @@ import type {ToolArgs} from './types.js';
 import {validateNetworkId} from './validate.js';
 import {validateRequired} from './validate.js';
 
-/** Stop a started node */
+/** Stop a started node
+
+  polarDocker also stops a node with the Error status, for example a node with
+  a locked LND wallet. The container of this node can run. Polar stops only a
+  Started node, and the error message is the Polar message.
+*/
 export default async ({args, dataDir}: ToolArgs<StopNodeArgs>) => {
   validateNetworkId(args.networkId);
   validateRequired(args.nodeName, 'Node name');
@@ -17,7 +22,7 @@ export default async ({args, dataDir}: ToolArgs<StopNodeArgs>) => {
 
   const node = findNode({network, nodeName: args.nodeName});
 
-  if (node.status !== 'Started' && node.status !== 'Locked') {
+  if (node.status !== 'Error' && node.status !== 'Started') {
     throw new Error(
       `Cannot stop node "${args.nodeName}". Node is currently ${node.status}. ` +
         'Only Started nodes can be stopped.',

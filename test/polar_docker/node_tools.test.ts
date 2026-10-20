@@ -309,6 +309,39 @@ test('Node commands and backends can be changed in a stopped network', () => {
   });
 });
 
+test('A node with the Error status can be stopped', () => {
+  return withDataDir(async dataDir => {
+    const {polar} = polarDocker({dataDir});
+
+    const {network} = await createNetwork({name: 'n', polar});
+
+    // A node with a locked LND wallet gets the Error status
+    const file = join(dataDir, 'networks', 'networks.json');
+    const json = JSON.parse(await readFile(file, 'utf8'));
+
+    json.networks[0].nodes.lightning[0].status = 'Error';
+
+    await writeFile(file, JSON.stringify(json));
+
+    // Without the network directory, docker compose does not run
+    await rm(network.path, {force: true, recursive: true});
+
+    const [code, message, details] = (await rejection(
+      stopNode({networkId: 1, nodeName: 'alice', polar}),
+    )) as [number, string, {err: string}];
+
+    deepStrictEqual(
+      [code, message, details.err],
+      [
+        404,
+        'PolarObjectNotFound',
+        `Network directory ${network.path} does not exist`,
+      ],
+      'The status check passes, and the stop runs',
+    );
+  });
+});
+
 test('Node versions and default commands can be listed', async () => {
   const {polar} = polarDocker({dataDir: join(tmpdir(), 'polarln-unused')});
 
