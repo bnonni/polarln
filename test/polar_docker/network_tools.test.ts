@@ -162,6 +162,21 @@ test('Docker backend errors have the same shape as bridge errors', () => {
           501,
           'PolarToolNotSupported',
           {
+            err: 'polarDocker does not support litd nodes yet',
+            tool: 'create_network',
+          },
+        ],
+        run: () => {
+          const nodes = [{implementation: 'litd' as const}];
+
+          return createNetwork({name: 'n', nodes, polar});
+        },
+      },
+      {
+        error: [
+          501,
+          'PolarToolNotSupported',
+          {
             err: 'Unknown tool: mint_tap_asset (polarDocker does not support it yet)',
             tool: 'mint_tap_asset',
           },

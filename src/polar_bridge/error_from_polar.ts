@@ -3,6 +3,8 @@ import type {PolarError} from '../typescript/index.js';
 // Polar sends each tool failure as HTTP 500 with only an error message.
 // The first rule that matches the message gives the code and the message.
 const rules: [RegExp, number, string][] = [
+  [/^Docker is not available\b/, 503, 'DockerNotAvailable'],
+  [/^Network directory .* does not exist$/, 404, 'PolarObjectNotFound'],
   [/^Unknown tool\b/i, 501, 'PolarToolNotSupported'],
   [/^polarDocker does not support\b/, 501, 'PolarToolNotSupported'],
   [/\btimed out\b|\btimeout\b/i, 504, 'PolarToolTimedOut'],

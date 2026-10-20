@@ -137,18 +137,19 @@ Some method names are also in `lightning` (for example `openChannel`). If you im
 
 Methods reject with `[code, message, details]`. Polar sends each tool error as an HTTP 500 with a message. polarln maps the message to a code:
 
-| Code | Message                         | Cause                                               |
-| ---- | ------------------------------- | --------------------------------------------------- |
-| 400  | `ExpectedPolarBridge`           | The `polar` argument is missing.                    |
-| 400  | `PolarRejectedArguments`        | Polar rejected an argument.                         |
-| 404  | `PolarNetworkNotFound`          | The network does not exist.                         |
-| 404  | `PolarNodeNotFound`             | The node does not exist.                            |
-| 404  | `PolarObjectNotFound`           | Another object (for example a file) does not exist. |
-| 501  | `PolarToolNotSupported`         | Polar or `polarDocker` does not have the tool.      |
-| 503  | `FailedToConnectToPolarBridge`  | The Polar app does not run, or the port is wrong.   |
-| 503  | `PolarToolFailed`               | Polar or a node returned another error.             |
-| 503  | `UnexpectedPolarBridgeResponse` | The response is not a Polar bridge response.        |
-| 504  | `PolarToolTimedOut`             | The tool took more than 30 seconds.                 |
+| Code | Message                         | Cause                                                                                                          |
+| ---- | ------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| 400  | `ExpectedPolarBridge`           | The `polar` argument is missing.                                                                               |
+| 400  | `PolarRejectedArguments`        | Polar rejected an argument.                                                                                    |
+| 404  | `PolarNetworkNotFound`          | The network does not exist.                                                                                    |
+| 404  | `PolarNodeNotFound`             | The node does not exist.                                                                                       |
+| 404  | `PolarObjectNotFound`           | Another object (for example a file) does not exist.                                                            |
+| 501  | `PolarToolNotSupported`         | Polar or `polarDocker` does not have the tool, or `polarDocker` does not support the node type.                |
+| 503  | `DockerNotAvailable`            | `polarDocker` cannot use Docker: Docker is not installed or does not run, or you cannot use the Docker socket. |
+| 503  | `FailedToConnectToPolarBridge`  | The Polar app does not run, or the port is wrong.                                                              |
+| 503  | `PolarToolFailed`               | Polar or a node returned another error.                                                                        |
+| 503  | `UnexpectedPolarBridgeResponse` | The response is not a Polar bridge response.                                                                   |
+| 504  | `PolarToolTimedOut`             | The tool took more than 30 seconds.                                                                            |
 
 `details.err` has the Polar message.
 

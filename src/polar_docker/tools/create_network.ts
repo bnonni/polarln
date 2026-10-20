@@ -6,11 +6,13 @@ import {join} from 'node:path';
 
 import type {CreateNetworkArgs} from '../../polar_methods/index.js';
 import type {Network} from '../../typescript/index.js';
+import {polarImplementations} from '../docker_configs.js';
 import {saveComposeFile} from '../network_actions.js';
 import {changeNetworks} from '../network_file.js';
 import newNetwork from '../new_network.js';
 import planNetwork from '../plan_network.js';
 import type {ToolArgs} from './types.js';
+import {validateDockerImplementation} from './validate.js';
 import {validateRequired} from './validate.js';
 
 /** Create a stopped network with nodes */
@@ -20,6 +22,15 @@ export default async ({args, dataDir}: ToolArgs<CreateNetworkArgs>) => {
   if (args.nodes !== undefined && !Array.isArray(args.nodes)) {
     throw new Error('The nodes must be an array');
   }
+
+  // A Polar node type that polarDocker does not run gives 501, as in add_node
+  (args.nodes || []).forEach(node => {
+    const implementation = node?.implementation as string;
+
+    if ((polarImplementations as string[]).includes(implementation)) {
+      validateDockerImplementation(implementation);
+    }
+  });
 
   const plan = planNetwork({nodes: args.nodes});
   const name = args.name as string;

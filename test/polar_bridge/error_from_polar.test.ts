@@ -23,6 +23,16 @@ const tests = [
   ['Network ID is required', 400, 'PolarRejectedArguments'],
   ['Number of blocks must be greater than 0', 400, 'PolarRejectedArguments'],
   ['Cannot open channel between the same node', 400, 'PolarRejectedArguments'],
+  [
+    'Docker is not available: Cannot connect to the Docker daemon',
+    503,
+    'DockerNotAvailable',
+  ],
+  [
+    'Network directory /home/u/timeout-runs/networks/1 does not exist',
+    404,
+    'PolarObjectNotFound',
+  ],
   ['insufficient funds available', 503, 'PolarToolFailed'],
 ] as const;
 
