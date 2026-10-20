@@ -4,7 +4,8 @@ import type {PolarDocker} from '../typescript/index.js';
 import makePolarDocker from './make_polar_docker.js';
 
 export type PolarDockerArgs = {
-  /** Data Directory Path (default: $POLARLN_DATA_DIR or ~/.polarln) */
+  /** Data Directory Path (default: $POLARLN_DATA_DIR, else the Polar app
+    data directory: ~/.local/share/polar if it exists, else ~/.polar) */
   dataDir?: string;
 };
 
@@ -12,6 +13,11 @@ export type PolarDockerArgs = {
 
   The backend runs the Polar tools on Docker, without the Polar app. It uses
   the Polar Docker images and the Polar v4.0.0 compose templates.
+
+  The data directory is the dataDir argument, then the POLARLN_DATA_DIR
+  environment variable, then the data directory of the Polar app:
+  ~/.local/share/polar if that path exists, else ~/.polar. Thus, with no
+  argument, the backend uses the networks of the Polar app.
 
   In a data directory of the Polar app (~/.local/share/polar or ~/.polar),
   the containers are polar-n<id>-<name> and the compose projects are

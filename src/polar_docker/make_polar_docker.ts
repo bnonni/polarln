@@ -1,8 +1,8 @@
-import {join} from 'node:path';
 import {resolve} from 'node:path';
 
 import checkPolarApp from '../polar_app/check_polar_app.js';
 import {isPolarHome} from '../polar_app/polar_home.js';
+import {polarHome} from '../polar_app/polar_home.js';
 import type {PolarDocker} from '../typescript/index.js';
 import dataFolder from './data_folder.js';
 import type {CheckApp} from './data_folder.js';
@@ -28,6 +28,11 @@ export type MakePolarDockerArgs = {
   This is the internal maker of polarDocker. The tests give an explicit home
   directory and environment, so that they never use the real home directory.
 
+  The data directory is the dataDir argument, then POLARLN_DATA_DIR in the
+  environment, then the data directory of the Polar app in the home
+  directory: <home>/.local/share/polar if that path exists, else
+  <home>/.polar.
+
   If the data directory is a data directory of the Polar app in the home
   directory, the containers and the compose projects get the Polar names.
   Also, the tools that change files or containers first check that the
@@ -51,7 +56,7 @@ export type MakePolarDockerArgs = {
 */
 export default (args: MakePolarDockerArgs): {polar: PolarDocker} => {
   const dir =
-    args.dataDir || args.env.POLARLN_DATA_DIR || join(args.home, '.polarln');
+    args.dataDir || args.env.POLARLN_DATA_DIR || polarHome({home: args.home});
 
   const dataDir = resolve(dir);
 

@@ -26,8 +26,9 @@ const globalRows: Row[] = [
   ],
   [
     '--data-dir <path>',
-    'Docker backend only. Data directory ' +
-      '(default: $POLARLN_DATA_DIR, else ~/.polarln).',
+    'Docker backend only. Data directory (default: $POLARLN_DATA_DIR, ' +
+      'else the Polar app data directory: ~/.local/share/polar if it ' +
+      'exists, else ~/.polar).',
   ],
 ];
 const intros: {[backend in BackendName]: string[]} = {

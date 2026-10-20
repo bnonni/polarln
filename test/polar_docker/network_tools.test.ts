@@ -25,6 +25,7 @@ import {assertPolarLoadable} from '../fixtures/assert_polar_loadable.js';
 import {fakeDockerRunner} from '../fixtures/fake_docker_runner.js';
 import {withPolarHome} from '../fixtures/polar_home.js';
 import {rejection} from '../fixtures/rejection.js';
+import {snapshot} from '../fixtures/snapshot.js';
 
 const withDataDir = async (use: (dataDir: string) => Promise<void>) => {
   const dataDir = await mkdtemp(join(tmpdir(), 'polarln-docker-'));
@@ -171,9 +172,103 @@ test('The internal maker gets the data directory from its arguments', () => {
       makePolarDocker({dataDir: 'x', env: {POLARLN_DATA_DIR: '/e'}, home}).polar
         .dataDir,
     ],
-    [join(home, '.polarln'), '/tmp/e', join(process.cwd(), 'x')],
-    'The argument comes first, then the environment, then the home',
+    [join(home, '.polar'), '/tmp/e', join(process.cwd(), 'x')],
+    'The argument comes first, then the environment, then the Polar home',
   );
+});
+
+test('The default data directory is the data directory of the Polar app', () => {
+  return withDataDir(async dir => {
+    const home = join(dir, 'home');
+    const xdg = join(home, '.local', 'share', 'polar');
+
+    const dataDirOf = (env: {[name: string]: string}) =>
+      makePolarDocker({env, home}).polar.dataDir;
+
+    equal(dataDirOf({}), join(home, '.polar'), 'Got .polar with no folders');
+
+    await mkdir(join(home, '.polar'), {recursive: true});
+
+    equal(dataDirOf({}), join(home, '.polar'), 'Got .polar');
+
+    await mkdir(xdg, {recursive: true});
+
+    equal(dataDirOf({}), xdg, 'Got .local/share/polar if it exists');
+
+    equal(
+      dataDirOf({POLARLN_DATA_DIR: join(dir, 'env')}),
+      join(dir, 'env'),
+      'POLARLN_DATA_DIR comes before the Polar home',
+    );
+  });
+});
+
+test('With no data directory, list_networks reads the Polar networks', () => {
+  return withPolarHome(async ({dataDir, home}) => {
+    const {calls, docker} = fakeDockerRunner();
+    const before = await snapshot(dataDir);
+    const checks: string[] = [];
+
+    const {polar} = makePolarDocker({
+      checkApp: async () => {
+        checks.push('check');
+
+        return {runs: false};
+      },
+      docker,
+      env: {},
+      home,
+    });
+
+    equal(polar.dataDir, dataDir, 'Got the Polar home of the fixture');
+
+    const {networks} = await listNetworks({polar});
+
+    deepStrictEqual(
+      networks.map(network => ({
+        name: network.name,
+        nodes: [
+          ...network.nodes.bitcoin,
+          ...network.nodes.lightning,
+          ...network.nodes.tap,
+        ].map(({name, status}) => [name, status]),
+        status: network.status,
+      })),
+      [
+        {
+          name: 'tapd-net',
+          nodes: [
+            ['backend1', 'Stopped'],
+            ['alice', 'Stopped'],
+            ['alice-tap', 'Stopped'],
+          ],
+          status: 'Stopped',
+        },
+        {
+          name: 'litd-net',
+          nodes: [
+            ['backend1', 'Stopped'],
+            ['alice', 'Stopped'],
+            ['bob', 'Stopped'],
+          ],
+          status: 'Stopped',
+        },
+        {
+          name: 'electrs-net',
+          nodes: [
+            ['backend1', 'Stopped'],
+            ['alice', 'Stopped'],
+          ],
+          status: 'Stopped',
+        },
+      ],
+      'Got the networks of the fixture with the status labels',
+    );
+
+    deepStrictEqual(await snapshot(dataDir), before, 'The files stay');
+    deepStrictEqual(calls, [], 'The list runs no docker command');
+    deepStrictEqual(checks, [], 'A read does not check the Polar app');
+  });
 });
 
 // The Polar app does not run, so the guard of the Polar home lets tools run
