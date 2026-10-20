@@ -10,6 +10,13 @@ This file shows the planned work for polarln. The order can change.
 - CI (2026-10-19): GitHub Actions runs lint, test, and build on each push to `main` and on each pull request.
 - Live UI test (2026-10-19): 16 tests on a Polar network with 3 LND nodes and 1 bitcoind node. The results are in the backlog item "Live network changes from the CLI". The README shows the `mine-blocks` workaround.
 - tapd live UI test (2026-10-19): 5 tests with a tapd node (Taproot Assets v0.7.0-alpha).
+- Polar home and auto backend (2026-10-20): the CLI default is `auto`. If the Polar app runs, the CLI uses the bridge. Else, it runs the command on Docker in the Polar home (`~/.local/share/polar` if it exists, else `~/.polar`). polarln never changes the Polar files while the app runs. The changes:
+  1. `polarDocker` reads and writes the Polar v4.0.0 networks file in each data folder. It writes only the final statuses, keeps the charts in sync, and holds a lock during each change.
+  2. In the Polar home, the containers and the compose projects have the Polar names. A path check and a container check stop a copy of a data folder from a change to the original.
+  3. In the Polar home, each tool that can change files or containers first checks that the Polar app does not run. The check uses a bridge probe and a process scan, and it fails closed.
+  4. A start and a stop use the compose file of the network, as in Polar. Thus networks with litd and tapd nodes, and with services that a user added, start and stop. The Lightning tools work on litd nodes.
+  5. The node-change tools refuse a network with a node kind or a compose service that `polarDocker` cannot write, before any change.
+- Docker names for each data folder (2026-10-20): the compose commands of one folder do not change the containers of a different folder. A command that finds a container of a different folder gives `409 ContainerNameInUse`. This was backlog item 1.
 
 ## Next
 
@@ -17,7 +24,7 @@ This file shows the planned work for polarln. The order can change.
 
 Goal: the SDK and the CLI start and control regtest networks without the Polar desktop app. This was the first goal of polarln.
 
-Design (proposed): one SDK with two backends. `polarBridge({url})` sends the tool calls to the Polar app. A new `polarDocker({dataDir})` runs the same `execute(tool, args)` on Docker, so the 48 methods do not change. The data folder is `~/.polarln`. The nodes use the Polar Docker images and the Polar v4.0.0 compose templates.
+Design (proposed): one SDK with two backends. `polarBridge({url})` sends the tool calls to the Polar app. A new `polarDocker({dataDir})` runs the same `execute(tool, args)` on Docker, so the 48 methods do not change. The data folder was `~/.polarln` at first. Since 2026-10-20, the default is the Polar home. The nodes use the Polar Docker images and the Polar v4.0.0 compose templates.
 
 Spike (2026-10-19, done): `scripts/headless_spike.ts` starts 1 bitcoind node and 2 LND nodes. Then it mines, opens 1 channel, and pays 1 invoice. Run `bun scripts/headless_spike.ts up`, then `bun scripts/headless_spike.ts down`.
 
@@ -35,24 +42,45 @@ Spike results (Bitcoin Core v30.0, LND v0.20.0-beta):
 
 Next phases:
 
-1. MVP, 2-3 weeks: `polarDocker` with bitcoind and LND, a network file in `~/.polarln`, and a backend flag for the CLI. In headless mode, the CLI reads a bundled tool schema, not the live schema. The steps:
+1. MVP, 2-3 weeks: `polarDocker` with bitcoind and LND, a network file, and a backend flag for the CLI. The network file was in `~/.polarln` at first. Now it is in the Polar home. In headless mode, the CLI reads a bundled tool schema, not the live schema. The steps:
    1. Done (2026-10-19): `src/lnd_grpc`, the polarln gRPC transport for the lnd Lightning, Router, and State services. It uses the lnd v0.20.0-beta protos in `protos/lnrpc` (`pnpm sync-protos <tag>`) and `@grpc/grpc-js` ^1.14.6. The fields are camelCase, as in `@lightningpolar/lnd-api`, so the Polar mappers can stay the same. `pnpm audit` shows no advisories. The spike uses the transport and passes under bun and under Node.
-   2. Done (2026-10-19): `polarDocker({dataDir})` in `src/polar_docker`. The 48 methods send their tool calls to the backend through `polar.execute`. The backend has the Polar network model (the network file, the node names, the ports, and the compose file) and 6 tools: `list_networks`, `create_network`, `start_network`, `stop_network`, `delete_network`, and `rename_network`. The results and the errors have the same shape as from the bridge. Live test: 3 start and stop cycles with 2 bitcoind nodes and 3 LND nodes. Each start takes 4-6 s. The test passes under bun and under Node.
+   2. Done (2026-10-19): `polarDocker({dataDir})` in `src/polar_docker`. The 48 methods send their tool calls to the backend through `polar.execute`. The backend has the Polar network model: the network file, the node names, the ports, and the compose file. It has 6 tools: `list_networks`, `create_network`, `start_network`, `stop_network`, `delete_network`, and `rename_network`. The results and the errors have the same shape as from the bridge. Live test: 3 start and stop cycles with 2 bitcoind nodes and 3 LND nodes. Each start takes 4-6 s. The test passes under bun and under Node.
    3. The other tools for bitcoind and LND nodes. Port the Polar LND and bitcoind tool logic and the Polar `mappers.ts`, so that the results are the same as the bridge results.
       1. Done (2026-10-19): the 10 node tools: `add_node`, `remove_node`, `start_node`, `stop_node`, `restart_node`, `rename_node`, `list_node_versions`, `get_default_node_command`, `update_node_command`, and `set_lightning_backend`. Live test: each tool on a started network with 2 bitcoind nodes and 3 LND nodes. The test takes 47 s.
       2. Done (2026-10-19): the 6 bitcoin tools: `mine_blocks`, `get_blockchain_info`, `get_bitcoin_wallet_info`, `send_bitcoin`, `get_new_bitcoin_address`, and `set_auto_mine_mode`. In Polar, `set_auto_mine_mode` sets only the mode value in memory: the bridge tool does not start the mine timer and does not save the mode. `polarDocker` saves the mode and does not mine.
       3. Done (2026-10-19): the 8 lightning tools: `open_channel`, `close_channel`, `list_channels`, `get_node_info`, `get_wallet_balance`, `deposit_funds`, `create_invoice`, and `pay_invoice`, with the Polar `mappers.ts`. Live test: all 30 tools on a started network with 2 bitcoind nodes and 3 LND nodes, also a 2-hop payment over a private channel. The test takes 64 s. A run under Node from `dist` also passes.
    4. Done (2026-10-20): the CLI backend flag and the bundled tool schema. `--backend docker` or `POLARLN_BACKEND=docker` selects the Docker backend, and `--data-dir` sets its data directory. The docker commands come from `src/polar_cli/bundled_tools.ts` (Polar v4.0.0), so the help works without Docker. The commands that `polarDocker` does not support reject with 501. The close and pay streams of lnd now end when the gRPC client closes, so each command process exits. A missing Docker gives `503 DockerNotAvailable`. Live test: `pnpm check-cli` runs 15 commands with `node dist/cli.js`, and `list-networks` with bun from `dist` and from `src`. Each process exits less than 25 ms after its last output. The test takes about 20 s.
-2. tapd and litd, 1-2 weeks.
+2. tapd and litd, 1-2 weeks. Done (2026-10-20): a start and a stop of networks with tapd and litd nodes, and the Lightning tools on litd nodes. The other items are in the backlog ("Polar home follow-ups"). Live test (2026-10-21) on the real Polar networks 4 (litd) and 5 (tapd): the CLI started both networks, and the tools worked. The Polar app opened network 5 as Started, with its chart. When the app quit, it stopped network 5. After each cycle, `networks.json` was byte-equal to the file before the test.
 3. Core Lightning, Eclair, and zip import and export, 1-2 weeks.
 
 ## Backlog
 
 ### Docker backend follow-ups
 
-1. Docker names for each data directory. In the Polar app data directory, the containers are `polar-n<id>-<name>` and the compose project is `polar-network-<id>`, as in the Polar app. In a different data directory, the names (`polarln-n<id>-<name>`) come from the network id only. Thus, networks with the same id in 2 such data directories cannot run at the same time. A compose command does not change the containers of the other folder: it gives `409 ContainerNameInUse` (`src/polar_docker/project_containers.ts`). See `src/polar_docker/node_names.ts` and `src/polar_docker/compose_file.ts`.
+1. Networks with the same id in 2 data folders that are not the Polar home. Now the names (`polarln-n<id>-<name>`) come from the network id only, so the second start gives `409 ContainerNameInUse`. A part of the folder path in the names can let both networks run at the same time. See `src/polar_docker/node_names.ts` and `src/polar_docker/compose_file.ts`.
 2. A timeout for each `docker compose` command. Now a stuck `docker` command blocks the tool with no limit (`src/polar_docker/run_compose.ts`).
 3. Global CLI flags before the command, for example `polarln --backend docker list-networks`. Now this is the usage error `ExpectedCommandBeforeFlags`.
+
+### Polar home follow-ups
+
+1. A startup check of the lit sub-servers for litd nodes, as in the Polar `litdService.waitUntilOnline`. Now a litd node gets Started after the LND check of its lnd daemon.
+2. Startup probes, RPC tools, and compose templates for tapd, c-lightning, and eclair nodes, and a compose template for litd nodes. Now these nodes get Started from the container state, and the node-change tools give `501` on their networks.
+3. Keep the services that a user added (for example `electrs`) in a new compose file. Now the node-change tools give `409 ComposeFileHasOtherServices` on such a network.
+4. simln: the Polar activity simulation.
+5. The Polar settings in the Polar home: the base ports of `settings.json`, and the custom images (`nodeImages.managed` and `nodeImages.custom`). Now new nodes get the Polar v4.0.0 defaults.
+6. A Docker state overlay in `list_networks`: one `docker ps` can show the real container states. Now `list_networks` shows the statuses of the file.
+7. A lock for each network during a long tool. Now only each read-modify-write of `networks.json` has a lock. A long tool writes back its copy of the network. Thus a change that a different process makes to that network during the tool is lost.
+8. A test of the macOS process scan (`ps -A -o pid=,comm=`, process name `Polar`) on a Mac.
+9. A safe takeover of a stale lock (`src/polar_docker/lock_networks_file.ts`). Now a waiter removes a lock folder that is older than 30 s. If 2 waiters find the same old lock, the second waiter can remove the new lock of the first waiter. Then both waiters change the networks file at the same time. A release also removes the lock folder with no check of the owner. A fix needs an owner token in the lock folder, or a heartbeat that updates the time of the lock.
+10. The Polar home under a different `HOME`, for example under `sudo`. `isPolarHome` compares the data folder only with the 2 Polar folders of the current `HOME`. Thus, with `HOME=/root`, `polarln --data-dir /home/u/.polar` uses the `polarln` names, and the Polar app check does not run. A possible rule: a data folder is also the Polar home if a network compose file has `name: polar-network-<id>`. A real path that ends with `/.polar` or `/.local/share/polar` can also count. The compose file rule also gives the Polar names to a copy of the Polar home with edited paths.
+
+Small items from the review:
+
+1. `rename_node`: check the container name of the new node name before the rename. Now a container of a different folder with that name makes the start after the rename give `409 ContainerNameInUse`, and the network stays stopped.
+2. `docker compose config --services` shows only the services with no profile or with an active profile. Use `--profile '*'`, and remove `COMPOSE_PROFILES` from the environment of the call.
+3. On a macOS volume that ignores the case of names, `--data-dir ~/.POLAR` is the Polar home, but `isPolarHome` gives false. A compare of the device and inode numbers can find this case.
+4. Under auto, `polarln --help` gives `409 PolarAppRunsWithoutBridge` if a Polar process runs and its bridge does not answer. The help can show the bundled tools and a note.
+5. `planStart` (`src/polar_docker/network_actions.ts`) looks only for `docker-compose.yml`. Compose reads `compose.yaml` first. If a user adds a `compose.yaml`, a port move writes a file that Compose does not read.
 
 ### Live network changes from the CLI
 

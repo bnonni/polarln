@@ -3,7 +3,11 @@ These types are in src/typescript and src/polar_methods.
 src/polar_docker includes the Polar v4.0.0 network, node, compose file,
 startup, and tool logic for bitcoind and LND nodes: the network, node,
 bitcoin, and lightning tools, the bitcoind and LND services, and the LND
-channel mappers.
+channel mappers. It also includes the Polar v4.0.0 networks file format
+and the Polar chart builders (src/utils/chart.ts).
+src/polar_app includes the Polar data folder rule (src/utils/config.ts),
+the bridge port rule (electron/constants.ts), and the health answer of the
+bridge (electron/mcpBridge.ts).
 scripts/headless_spike.ts includes the Polar v4.0.0 compose templates
 and node commands.
 src/polar_cli/bundled_tools.ts includes the names, descriptions, and input
