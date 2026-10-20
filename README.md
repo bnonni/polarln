@@ -163,7 +163,7 @@ To find changes in a new Polar version, start Polar and run:
 pnpm check-tools
 ```
 
-The script compares the live tools with `test/fixtures/tools.json`.
+The script compares the live tools with `src/polar_cli/bundled_tools.ts`. To update the file, run `pnpm check-tools --write <version>`, for example `pnpm check-tools --write 4.1.0`.
 
 ## Development
 
@@ -178,4 +178,4 @@ To test the Docker backend on Docker, run `pnpm check-docker`.
 
 ## License
 
-[Unlicense](LICENSE). The code in `src/typescript`, `src/polar_methods`, and `src/polar_docker` comes from [jamaljsr/polar](https://github.com/jamaljsr/polar) (MIT). The protos in `protos/lnrpc` come from [lnd](https://github.com/lightningnetwork/lnd) (MIT). See [NOTICE](NOTICE).
+[Unlicense](LICENSE). The code in `src/typescript`, `src/polar_methods`, and `src/polar_docker`, and the tool schemas in `src/polar_cli/bundled_tools.ts`, come from [jamaljsr/polar](https://github.com/jamaljsr/polar) (MIT). The protos in `protos/lnrpc` come from [lnd](https://github.com/lightningnetwork/lnd) (MIT). See [NOTICE](NOTICE).

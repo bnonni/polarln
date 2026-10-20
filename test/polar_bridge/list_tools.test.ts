@@ -2,9 +2,11 @@ import {deepStrictEqual} from 'node:assert/strict';
 import test from 'node:test';
 
 import {listTools} from '../../src/index.js';
+import bundledTools from '../../src/polar_cli/bundled_tools.js';
 import {fakePolar} from '../fixtures/fake_polar.js';
 import {rejection} from '../fixtures/rejection.js';
-import fixture from '../fixtures/tools.json' with {type: 'json'};
+
+const fixture = {tools: bundledTools};
 
 test('The tools come from a GET request', async () => {
   const {polar, requests} = fakePolar({body: fixture});

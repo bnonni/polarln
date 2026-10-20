@@ -2,8 +2,8 @@ import {deepStrictEqual} from 'node:assert/strict';
 import test from 'node:test';
 
 import * as methods from '../../src/polar_methods/index.js';
+import bundledTools from '../../src/polar_cli/bundled_tools.js';
 import {fakePolar} from '../fixtures/fake_polar.js';
-import fixture from '../fixtures/tools.json' with {type: 'json'};
 
 const camelCase = (name: string) =>
   name.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
@@ -27,5 +27,5 @@ test('Each Polar bridge tool has a method with the camelCase name', async () => 
     tools.map(camelCase).sort(),
   );
 
-  deepStrictEqual(tools.sort(), fixture.tools.map(({name}) => name).sort());
+  deepStrictEqual(tools.sort(), bundledTools.map(({name}) => name).sort());
 });

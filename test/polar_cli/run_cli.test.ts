@@ -3,10 +3,11 @@ import {strictEqual} from 'node:assert/strict';
 import test from 'node:test';
 
 import {runCli} from '../../src/polar_cli/index.js';
+import bundledTools from '../../src/polar_cli/bundled_tools.js';
 import {fakePolar} from '../fixtures/fake_polar.js';
 import type {FakeRequest} from '../fixtures/fake_polar.js';
-import fixture from '../fixtures/tools.json' with {type: 'json'};
 
+const fixture = {tools: bundledTools};
 const notFound = "Network with the id '9' was not found.";
 
 // The fake bridge gives the fixture tools and a result for each tool call
