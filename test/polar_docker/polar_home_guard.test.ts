@@ -33,6 +33,12 @@ const hint =
   'The Polar app runs. polarln does not change the Polar files while the ' +
   'app runs. Use --backend bridge, or quit the app.';
 
+const processHint =
+  'The Polar app runs. polarln does not change the Polar files while the ' +
+  'app runs. Its bridge does not answer at the probed port. Use --backend ' +
+  'bridge with the bridge port of the app (POLAR_MCP_PORT or --url), or ' +
+  'quit the app.';
+
 const bridge: PolarAppCheck = {
   found: 'bridge',
   runs: true,
@@ -164,7 +170,13 @@ test('A Polar process gives its process id', () => {
       [
         409,
         'PolarAppIsRunning',
-        {dataDir, found: 'process', hint, pid: 4242, stage: 'before-tool'},
+        {
+          dataDir,
+          found: 'process',
+          hint: processHint,
+          pid: 4242,
+          stage: 'before-tool',
+        },
       ],
       'Got the process',
     );

@@ -2,13 +2,20 @@
 // Run: pnpm check-cli. Exit code 1 means that a check failed.
 // Each command runs as a new "node dist/cli.js" process. The check fails if a
 // process does not exit within 1 s after its last output.
+// Each process gets a temporary HOME, so that no process uses the Polar home,
+// and POLAR_MCP_PORT at a closed port. DOCKER_CONFIG keeps the docker
+// configuration of the user.
 import {execFile} from 'node:child_process';
 import {spawn} from 'node:child_process';
 import {mkdtemp, rm} from 'node:fs/promises';
+import {createServer} from 'node:net';
+import {homedir} from 'node:os';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {promisify} from 'node:util';
+
+import findPolarProcess from '../src/polar_app/find_polar_process.js';
 
 const cliPath = fileURLToPath(new URL('../dist/cli.js', import.meta.url));
 const srcCliPath = fileURLToPath(new URL('../src/cli.ts', import.meta.url));
@@ -26,6 +33,25 @@ type Result = {
 
 const rows: {command: string; code: number | null; lag: number; ms: number}[] =
   [];
+
+// Get a port with no listener: listen on a free port, then close it
+const closedPort = async () => {
+  const server = createServer();
+
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+
+  const address = server.address();
+
+  await new Promise(resolve => server.close(resolve));
+
+  if (!address || typeof address === 'string') {
+    throw new Error('ExpectedPortOfServer');
+  }
+
+  return address.port;
+};
+
+const dockerConfig = process.env.DOCKER_CONFIG || join(homedir(), '.docker');
 
 const log = (message: string) =>
   console.error(`[${(performance.now() / 1000).toFixed(1)}s] ${message}`);
@@ -46,8 +72,13 @@ const cli = (args: {
   const start = performance.now();
   const [program = 'node', ...runtimeArgs] = args.runtime || ['node', cliPath];
 
-  // Do not use the POLARLN variables of the shell
-  const env = {...process.env};
+  // Do not use the POLARLN variables of the shell, or the real home
+  const env = {
+    ...process.env,
+    DOCKER_CONFIG: dockerConfig,
+    HOME: cliHome,
+    POLAR_MCP_PORT: bridgePort,
+  };
 
   delete env.POLARLN_BACKEND;
   delete env.POLARLN_DATA_DIR;
@@ -146,6 +177,10 @@ const {stdout: nodeVersion} = await run('node', ['--version']);
 log(`node ${nodeVersion.trim()}`);
 
 const dataDir = await mkdtemp(join(tmpdir(), 'polarln-cli-'));
+
+// The temporary HOME of each process, and the closed bridge port
+const cliHome = await mkdtemp(join(tmpdir(), 'polarln-cli-home-'));
+const bridgePort = `${await closedPort()}`;
 const docker = {POLARLN_BACKEND: 'docker', POLARLN_DATA_DIR: dataDir};
 
 let networkId: number | undefined;
@@ -189,6 +224,43 @@ try {
 
   expectExit(url, 2, '--url with docker');
   check(url.stderr.includes('UnexpectedFlagForBackend'), '--url usage error');
+
+  // With no flags, auto probes the closed bridge port. With no Polar process,
+  // it selects docker on the Polar home of the temporary HOME. A Polar process
+  // gives 409, so the case is skipped if the Polar app runs. An unknown scan
+  // also selects docker, but the help names only the bridge.
+  const polarProcess = await findPolarProcess();
+
+  if (polarProcess.result === 'found') {
+    log(`skip the auto checks: Polar process ${polarProcess.pid} runs`);
+  } else {
+    const autoHelp = await cli({argv: ['--help'], command: 'auto help'});
+
+    const bridgeUrl = `http://localhost:${bridgePort}`;
+
+    const autoCause =
+      polarProcess.result === 'unknown'
+        ? `the Polar bridge does not answer at ${bridgeUrl}`
+        : `no Polar app at ${bridgeUrl}`;
+
+    const autoLine =
+      `Backend: docker (auto: ${autoCause}). ` +
+      `Data folder: ${join(cliHome, '.polar')} (the Polar home).`;
+
+    expectExit(autoHelp, 0, 'auto help');
+    check(autoHelp.stdout.includes(`\n${autoLine}\n`), 'auto selects docker');
+
+    const autoList = await cli({
+      argv: ['list-networks'],
+      command: 'auto list-networks',
+    });
+
+    expectExit(autoList, 0, 'auto list-networks');
+    check(
+      autoList.stdout === '{\n  "networks": []\n}\n',
+      'auto list-networks reads the empty Polar home',
+    );
+  }
 
   // A network flow with the environment variables
   const nodes = [
@@ -330,6 +402,7 @@ try {
   }
 
   await rm(dataDir, {force: true, recursive: true});
+  await rm(cliHome, {force: true, recursive: true});
 
   console.table(
     rows.map(row => ({

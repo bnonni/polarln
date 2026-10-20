@@ -2,9 +2,10 @@ import {deepStrictEqual} from 'node:assert/strict';
 import {throws} from 'node:assert/strict';
 import test from 'node:test';
 
+import {backendNames} from '../../src/polar_cli/select_backend.js';
 import selectBackend from '../../src/polar_cli/select_backend.js';
 
-const allowed = ['bridge', 'docker'];
+const allowed = ['auto', 'bridge', 'docker'];
 
 const tests: {
   description: string;
@@ -14,8 +15,74 @@ const tests: {
   values?: {[flag: string]: boolean | string};
 }[] = [
   {
-    description: 'No flag and no environment variable give the bridge',
-    expected: {backend: 'bridge', from: 'default'},
+    description: 'No flag and no environment variable give auto',
+    expected: {backend: 'auto', from: 'default'},
+  },
+  {
+    description: 'auto can come from the flag or the environment variable',
+    env: {POLARLN_BACKEND: 'auto'},
+    expected: {backend: 'auto', from: 'POLARLN_BACKEND'},
+  },
+  {
+    description: 'The --backend flag can select auto',
+    env: {POLARLN_BACKEND: 'docker'},
+    expected: {backend: 'auto', from: '--backend'},
+    values: {backend: 'auto'},
+  },
+  {
+    description: 'Under auto, --url selects the bridge',
+    expected: {backend: 'bridge', from: '--url'},
+    values: {url: 'http://h:1'},
+  },
+  {
+    description: 'Under auto, --data-dir selects docker',
+    env: {POLARLN_BACKEND: 'auto'},
+    expected: {backend: 'docker', from: '--data-dir'},
+    values: {'data-dir': '/x'},
+  },
+  {
+    description: 'Under auto, an empty --data-dir is the same as no flag',
+    expected: {backend: 'auto', from: 'default'},
+    values: {'data-dir': ''},
+  },
+  {
+    description: 'Under auto, an empty --url is the same as no flag',
+    expected: {backend: 'auto', from: 'default'},
+    values: {url: ''},
+  },
+  {
+    description: 'Under auto, a --data-dir flag with no value does not select',
+    expected: {backend: 'auto', from: 'default'},
+    values: {'data-dir': true},
+  },
+  {
+    description: 'Under auto, a --url flag with no value does not select',
+    expected: {backend: 'auto', from: 'default'},
+    values: {url: true},
+  },
+  {
+    description: 'Under auto, an empty --data-dir with --url is no error',
+    expected: {backend: 'bridge', from: '--url'},
+    values: {'data-dir': '', url: 'http://h:1'},
+  },
+  {
+    description: 'Under auto, an empty --url with --data-dir is no error',
+    expected: {backend: 'docker', from: '--data-dir'},
+    values: {'data-dir': '/x', url: ''},
+  },
+  {
+    description: 'Under auto, POLARLN_DATA_DIR does not select docker',
+    env: {POLARLN_DATA_DIR: '/x'},
+    expected: {backend: 'auto', from: 'default'},
+  },
+  {
+    description: 'Under auto, --url and --data-dir together are an error',
+    error: [
+      400,
+      'UnexpectedFlagForBackend',
+      {backend: 'bridge', flag: '--data-dir', from: '--url'},
+    ],
+    values: {'data-dir': '/x', url: 'http://h:1'},
   },
   {
     description: 'POLARLN_BACKEND selects the backend',
@@ -25,7 +92,7 @@ const tests: {
   {
     description: 'An empty POLARLN_BACKEND is the same as no value',
     env: {POLARLN_BACKEND: ''},
-    expected: {backend: 'bridge', from: 'default'},
+    expected: {backend: 'auto', from: 'default'},
   },
   {
     description: 'The --backend flag selects the backend',
@@ -88,10 +155,11 @@ const tests: {
   },
   {
     description: 'The bridge does not take --data-dir',
+    env: {POLARLN_BACKEND: 'bridge'},
     error: [
       400,
       'UnexpectedFlagForBackend',
-      {backend: 'bridge', flag: '--data-dir', from: 'default'},
+      {backend: 'bridge', flag: '--data-dir', from: 'POLARLN_BACKEND'},
     ],
     values: {'data-dir': '/x'},
   },
@@ -134,4 +202,8 @@ tests.forEach(({description, env, error, expected, values}) => {
       deepStrictEqual(selectBackend(args), expected);
     }
   });
+});
+
+test('The backend choices are auto, bridge, and docker', () => {
+  deepStrictEqual([...backendNames], allowed);
 });

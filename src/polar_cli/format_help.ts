@@ -2,6 +2,25 @@ import type {PolarTool} from '../polar_bridge/index.js';
 import {commandName} from './names.js';
 import {flagName} from './names.js';
 import type {BackendName} from './select_backend.js';
+import type {BackendSource} from './select_backend.js';
+
+/** Backend of a Command, for the Help */
+export type HelpBackend = {
+  /** The Backend Comes From the Bridge Probe of Auto */
+  auto: boolean;
+  /** Backend Name */
+  backend: BackendName;
+  /** Docker Data Directory Path (only for docker) */
+  dataDir?: string;
+  /** Source of the Backend Choice */
+  from: BackendSource;
+  /** The Docker Data Directory Is the Polar Home */
+  isPolarHome?: boolean;
+  /** Result of the Polar Process Scan of Auto (only for docker) */
+  scan?: 'none' | 'unknown';
+  /** Bridge Base URL */
+  url: string;
+};
 
 type Property = {
   default?: unknown;
@@ -16,19 +35,19 @@ const globalRows: Row[] = [
   ['--help, -h', 'Show the help.'],
   [
     '--backend <name>',
-    'Backend: bridge (the Polar app) or docker (no Polar app). ' +
-      'Default: $POLARLN_BACKEND, else bridge.',
+    'auto, bridge, or docker (default: $POLARLN_BACKEND, else auto). ' +
+      'Auto uses the bridge if the Polar app answers, else docker.',
   ],
   [
     '--url <url>',
-    'Bridge backend only. Polar bridge base URL ' +
-      '(default: http://localhost:37373, or the port in $POLAR_MCP_PORT).',
+    'Bridge URL (default: http://localhost:37373, or the port in ' +
+      '$POLAR_MCP_PORT). With auto, it selects the bridge.',
   ],
   [
     '--data-dir <path>',
-    'Docker backend only. Data directory (default: $POLARLN_DATA_DIR, ' +
-      'else the Polar app data directory: ~/.local/share/polar if it ' +
-      'exists, else ~/.polar).',
+    'Docker data folder (default: $POLARLN_DATA_DIR, else the Polar home: ' +
+      '~/.local/share/polar if it exists, else ~/.polar). With auto, it ' +
+      'selects docker.',
   ],
 ];
 const intros: {[backend in BackendName]: string[]} = {
@@ -46,6 +65,36 @@ const notSupported =
   'The docker backend does not support this command yet (error 501).';
 const sentenceEnd = /[.!?]$/;
 const sentenceStop = /\.(?:\s|$)/;
+
+// Get the cause of an auto choice. An unknown scan does not show that the
+// Polar app is off, so the cause names only the bridge.
+const autoCauseOf = (args: HelpBackend) => {
+  if (args.backend === 'bridge') {
+    return `auto: the Polar app answers at ${args.url}`;
+  }
+
+  if (args.scan === 'unknown') {
+    return `auto: the Polar bridge does not answer at ${args.url}`;
+  }
+
+  return `auto: no Polar app at ${args.url}`;
+};
+
+// Get the help line that names the backend and the cause of the choice
+const backendLine = (args: HelpBackend) => {
+  const home = !!args.isPolarHome ? ' (the Polar home)' : '';
+
+  const place =
+    args.backend === 'docker'
+      ? ` Data folder: ${args.dataDir}${home}.`
+      : !args.auto
+        ? ` Bridge URL: ${args.url}.`
+        : '';
+
+  const cause = args.auto ? autoCauseOf(args) : args.from;
+
+  return `Backend: ${args.backend} (${cause}).${place}`;
+};
 
 // Align rows in two columns
 const columns = (rows: Row[]) => {
@@ -155,10 +204,19 @@ export const commandHelp = ({
 
 /** Get the help text of all commands
 
-  The tools that the backend does not support show in a separate list
+  The first line of the intro names the backend and the cause of the choice.
+  The tools that the backend does not support show in a separate list.
 
   {
-    backend: <Backend Name String>
+    backend: {
+      auto: <The Backend Comes From the Bridge Probe of Auto Bool>
+      backend: <Backend Name String> // bridge or docker
+      [dataDir]: <Docker Data Directory Path String>
+      from: <Source of the Backend Choice String>
+      [isPolarHome]: <The Data Directory Is the Polar Home Bool>
+      [scan]: <Process Scan Result of Auto String> // none or unknown
+      url: <Bridge Base URL String>
+    }
     tools: [<Polar Tool Object>]
     unsupported: [<Tool Name That the Backend Does Not Support String>]
   }
@@ -171,10 +229,12 @@ export const commandsHelp = ({
   tools,
   unsupported,
 }: {
-  backend: BackendName;
+  backend: HelpBackend;
   tools: PolarTool[];
   unsupported: string[];
 }) => {
+  const name = backend.backend;
+
   const isSupported = (tool: PolarTool) => !unsupported.includes(tool.name);
 
   const others = tools.filter(tool => !isSupported(tool));
@@ -182,7 +242,7 @@ export const commandsHelp = ({
   const otherLines = !others.length
     ? []
     : [
-        `Commands that the ${backend} backend does not support yet (error 501):`,
+        `Commands that the ${name} backend does not support yet (error 501):`,
         columns(commandRows(others)),
         '',
       ];
@@ -190,7 +250,9 @@ export const commandsHelp = ({
   return [
     'Usage: polarln <command> [flags]',
     '',
-    ...intros[backend],
+    backendLine(backend),
+    '',
+    ...intros[name],
     '',
     'Commands:',
     columns(commandRows(tools.filter(isSupported))),

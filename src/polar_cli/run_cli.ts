@@ -1,12 +1,17 @@
+import {homedir} from 'node:os';
+import {resolve} from 'node:path';
 import {parseArgs} from 'node:util';
 import type {ParseArgsOptionsConfig} from 'node:util';
 
-import {listTools} from '../polar_bridge/index.js';
+import findPolarProcess from '../polar_app/find_polar_process.js';
+import type {PolarProcessScan} from '../polar_app/find_polar_process.js';
+import {isPolarHome} from '../polar_app/polar_home.js';
+import {polarHome} from '../polar_app/polar_home.js';
 import {polarBridge} from '../polar_bridge/index.js';
 import {toolMethod} from '../polar_bridge/index.js';
 import type {PolarTool} from '../polar_bridge/index.js';
+import type {CheckApp} from '../polar_docker/data_folder.js';
 import {dockerToolNames} from '../polar_docker/docker_tool_names.js';
-import type {PolarDockerArgs} from '../polar_docker/index.js';
 import type {PolarBackend} from '../typescript/index.js';
 import type {PolarDocker} from '../typescript/index.js';
 import type {PolarError} from '../typescript/index.js';
@@ -14,14 +19,18 @@ import bundledTools from './bundled_tools.js';
 import formatError from './format_error.js';
 import {commandHelp} from './format_help.js';
 import {commandsHelp} from './format_help.js';
+import type {HelpBackend} from './format_help.js';
 import localTools from './local_tools.js';
 import {commandName} from './names.js';
 import parseFlags from './parse_flags.js';
 import {globalOptions} from './parse_flags.js';
 import type {ParseFlagsResult} from './parse_flags.js';
+import resolveBackend from './resolve_backend.js';
+import type {ResolvedBackend} from './resolve_backend.js';
 import selectBackend from './select_backend.js';
 import type {SelectBackendResult} from './select_backend.js';
 
+const defaultBridgePort = 37373;
 const dockerNames: readonly string[] = dockerToolNames;
 const failed = 1;
 const helpCommands = ['--help', '-h', 'help'];
@@ -37,16 +46,30 @@ const dockerUnsupported = bundledTools
   .map(({name}) => name)
   .filter(name => !dockerNames.includes(name));
 
+/** Arguments of the Docker Backend Maker of the CLI */
+export type DockerMakerArgs = {
+  /** Resolved Data Directory Path */
+  dataDir: string;
+  /** Home Directory Path */
+  home: string;
+};
+
 export type RunCliArgs = {
   /** Command Line Arguments Without the Node and Script Paths */
   argv: string[];
-  /** Environment Variables With POLARLN_BACKEND and POLARLN_DATA_DIR
-    (default: process.env) */
+  /** Check if the Polar App Runs, for the Docker Guard (tests give a fake) */
+  checkApp?: CheckApp;
+  /** Environment Variables With POLARLN_BACKEND, POLARLN_DATA_DIR, and
+    POLAR_MCP_PORT (default: process.env) */
   env?: {[name: string]: string | undefined};
   /** Fetch Function (default: global fetch) */
   fetch?: typeof fetch;
-  /** Make the Docker Backend (default: polarDocker) */
-  polarDocker?: (args: PolarDockerArgs) => {polar: PolarDocker};
+  /** Look for a Polar Process (default: the scan of the processes) */
+  findProcess?: () => Promise<PolarProcessScan>;
+  /** Home Directory Path (default: the home directory of the user) */
+  home?: string;
+  /** Make the Docker Backend (default: the internal polarDocker maker) */
+  polarDocker?: (args: DockerMakerArgs) => {polar: PolarDocker};
   /** Write Error Output */
   stderr: (text: string) => void;
   /** Write Output */
@@ -88,17 +111,57 @@ const preParse = (argv: string[]) => {
 
 // Make the Docker backend. Load its code only here: grpc-js adds about 130 ms.
 const dockerOf = async (args: {
-  dataDir?: string;
+  checkApp?: CheckApp;
+  dataDir: string;
+  env: {[name: string]: string | undefined};
+  home: string;
   make?: RunCliArgs['polarDocker'];
 }) => {
   try {
-    const make =
-      args.make || (await import('../polar_docker/index.js')).polarDocker;
+    if (!!args.make) {
+      return args.make({dataDir: args.dataDir, home: args.home}).polar;
+    }
 
-    return make({dataDir: args.dataDir}).polar;
+    const {default: make} =
+      await import('../polar_docker/make_polar_docker.js');
+
+    const {polar} = make({
+      checkApp: args.checkApp,
+      dataDir: args.dataDir,
+      env: args.env,
+      home: args.home,
+    });
+
+    return polar;
   } catch (err) {
     throw [503, 'FailedToLoadDockerBackend', {err}] satisfies PolarError;
   }
+};
+
+// Get the backend line data of the help
+const helpBackendOf = (args: {
+  dataDir: string;
+  home: string;
+  resolved: ResolvedBackend;
+  selected: SelectBackendResult;
+  url: string;
+}): HelpBackend => {
+  const {auto, backend} = args.resolved;
+  const {from} = args.selected;
+
+  if (backend === 'bridge') {
+    return {auto, backend, from, url: args.url};
+  }
+
+  return {
+    auto,
+    backend,
+    dataDir: args.dataDir,
+    from,
+    isPolarHome: isPolarHome({dataDir: args.dataDir, home: args.home}),
+    scan: args.resolved.scan,
+    url: args.url,
+  };
 };
 
 // Run a tool with its arguments
@@ -120,16 +183,40 @@ const runTool = (args: {
 
   Each tool argument is a flag: networkId is `--network-id`
 
-  The bridge backend gets the tools from the Polar app. The docker backend
-  uses the bundled tool schemas, so its help does not need Docker.
+  The backend is the --backend flag, then POLARLN_BACKEND, then auto. Under
+  auto, these rules select the backend:
+  - A --url flag selects the bridge, with no fallback.
+  - A --data-dir flag selects docker, with no bridge request.
+  - A --url or --data-dir flag with an empty value or with no value is the
+    same as no flag.
+  - With neither flag, the CLI requests the tools of the bridge. An answer
+    selects the bridge. A refused connect starts a scan for a Polar process.
+    If a Polar process runs, the command fails with 409
+    PolarAppRunsWithoutBridge. Else docker runs.
+  - Each other failure of the request fails the command, because it does not
+    prove that the app is off: a timeout, an error answer, or a bad URL.
 
-  The result goes to the output as JSON. A rejection goes to the error output
-  as one line of JSON: [code, message, details]
+  The bridge URL is the --url flag, else localhost on the port of
+  POLAR_MCP_PORT, else on port 37373. The tools request has a timeout of
+  3 s. The bridge backend gets the tools from the Polar app. The docker
+  backend uses the bundled tool schemas, so its help does not need Docker.
+
+  The docker data directory is the --data-dir flag, then POLARLN_DATA_DIR,
+  then the Polar home: <home>/.local/share/polar if it exists, else
+  <home>/.polar. In the Polar home, the docker backend checks that the Polar
+  app does not run before each change.
+
+  The help names the backend and the cause of the choice. The result goes
+  to the output as JSON. A rejection goes to the error output as one line of
+  JSON: [code, message, details]
 
   {
     argv: [<Command Line Argument String>]
+    [checkApp]: <Check if the Polar App Runs Function>
     [env]: {<Environment Variable Name String>: <Value String>}
     [fetch]: <Fetch Function>
+    [findProcess]: <Look for a Polar Process Function>
+    [home]: <Home Directory Path String> // Default: os.homedir()
     [polarDocker]: <Make Docker Backend Function>
     stderr: <Write Error Output Function>
     stdout: <Write Output Function>
@@ -157,6 +244,7 @@ export default async (args: RunCliArgs): Promise<number> => {
   }
 
   const env = args.env || process.env;
+  const home = args.home ?? homedir();
 
   let positionals: string[];
   let selected: SelectBackendResult;
@@ -172,35 +260,53 @@ export default async (args: RunCliArgs): Promise<number> => {
     return usageFailed;
   }
 
-  const {backend} = selected;
+  const {polar: bridge} = polarBridge({
+    fetch: args.fetch,
+    url:
+      stringOf(values.url) ||
+      `http://localhost:${env.POLAR_MCP_PORT || defaultBridgePort}`,
+  });
 
-  const bridge =
-    backend !== 'bridge'
-      ? undefined
-      : polarBridge({fetch: args.fetch, url: stringOf(values.url)}).polar;
-
-  const unsupported = !bridge ? dockerUnsupported : [];
-
-  let tools: PolarTool[];
+  let resolved: ResolvedBackend;
 
   try {
-    const source = !bridge
-      ? bundledTools
-      : (await listTools({polar: bridge})).tools;
-
-    tools = [
-      ...source.filter(({name}) => !localNames.includes(name)),
-      ...localTools,
-    ];
+    resolved = await resolveBackend({
+      bridge,
+      findProcess: args.findProcess || findPolarProcess,
+      selected,
+    });
   } catch (err) {
     args.stderr(formatError(err));
 
     return failed;
   }
 
+  const source = resolved.backend === 'bridge' ? resolved.tools : bundledTools;
+
+  const tools = [
+    ...source.filter(({name}) => !localNames.includes(name)),
+    ...localTools,
+  ];
+
+  const unsupported = resolved.backend === 'docker' ? dockerUnsupported : [];
+
+  const dataDir = resolve(
+    stringOf(values['data-dir']) ||
+      stringOf(env.POLARLN_DATA_DIR) ||
+      polarHome({home}),
+  );
+
   const name = isHelp ? positionals[0] : command;
 
   if (!name) {
+    const backend = helpBackendOf({
+      dataDir,
+      home,
+      resolved,
+      selected,
+      url: bridge.url,
+    });
+
     args.stdout(commandsHelp({backend, tools, unsupported}));
 
     return succeeded;
@@ -238,11 +344,15 @@ export default async (args: RunCliArgs): Promise<number> => {
 
   try {
     const polar =
-      bridge ||
-      (await dockerOf({
-        dataDir: stringOf(values['data-dir']) || stringOf(env.POLARLN_DATA_DIR),
-        make: args.polarDocker,
-      }));
+      resolved.backend === 'bridge'
+        ? bridge
+        : await dockerOf({
+            checkApp: args.checkApp,
+            dataDir,
+            env,
+            home,
+            make: args.polarDocker,
+          });
 
     const result = await runTool({args: flags.args, polar, tool});
 

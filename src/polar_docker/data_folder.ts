@@ -33,9 +33,18 @@ export type DataFolder = {
   prefix: ContainerPrefix;
 };
 
-const appRunsHint =
-  'The Polar app runs. polarln does not change the Polar files while the ' +
-  'app runs. Use --backend bridge, or quit the app.';
+// The hint for each way to find the app. A Polar process with no bridge at
+// the probed port needs the bridge port of the app.
+const appRunsHints: {[found in 'bridge' | 'process']: string} = {
+  bridge:
+    'The Polar app runs. polarln does not change the Polar files while the ' +
+    'app runs. Use --backend bridge, or quit the app.',
+  process:
+    'The Polar app runs. polarln does not change the Polar files while the ' +
+    'app runs. Its bridge does not answer at the probed port. Use --backend ' +
+    'bridge with the bridge port of the app (POLAR_MCP_PORT or --url), or ' +
+    'quit the app.',
+};
 
 const run = promisify(execFile);
 
@@ -123,7 +132,7 @@ export default (args: {
     throw [
       409,
       'PolarAppIsRunning',
-      {dataDir, ...found, hint: appRunsHint, stage},
+      {dataDir, ...found, hint: appRunsHints[found.found], stage},
     ] satisfies PolarError;
   };
 

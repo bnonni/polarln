@@ -1,5 +1,7 @@
 import {deepStrictEqual} from 'node:assert/strict';
 import {strictEqual} from 'node:assert/strict';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import test from 'node:test';
 
 import {runCli} from '../../src/polar_cli/index.js';
@@ -20,7 +22,8 @@ const executed = (requests: FakeRequest[]) => {
   return requests.filter(({method}) => method === 'POST').map(({body}) => body);
 };
 
-// Run the command line with a fake bridge
+// Run the command line with a fake bridge. These tests expect the bridge, so
+// the Docker backend maker and the process scan throw if the CLI calls them.
 const run = async (
   argv: string[],
   fake: Parameters<typeof fakePolar>[0] = {respond: bridge},
@@ -31,8 +34,18 @@ const run = async (
 
   const code = await runCli({
     argv,
+    checkApp: async () => {
+      throw new Error('ExpectedNoPolarAppCheck');
+    },
     env: {},
     fetch: polar.fetch,
+    findProcess: async () => {
+      throw new Error('ExpectedNoProcessScan');
+    },
+    home: join(tmpdir(), 'polarln-run-cli-no-home'),
+    polarDocker: () => {
+      throw new Error('ExpectedNoDockerBackend');
+    },
     stderr: text => stderr.push(text),
     stdout: text => stdout.push(text),
     version: '1.2.3',
@@ -129,6 +142,7 @@ test('A tool failure gives exit code 1 and a rejection line', async () => {
 });
 
 test('A bridge that does not run gives exit code 1', async () => {
+  // A fetch error with no refused code does not select docker
   const {code, stderr} = await run(['list-networks'], {
     error: new Error('fetch failed', {cause: new Error('ECONNREFUSED')}),
   });
@@ -238,6 +252,13 @@ test('No command shows the commands', async () => {
 
   strictEqual(code, 0);
   strictEqual(stdout.startsWith('Usage: polarln <command> [flags]\n'), true);
+
+  strictEqual(
+    stdout.split('\n')[2],
+    'Backend: bridge (auto: the Polar app answers at http://localhost:37373).',
+    'The intro names the backend and the cause',
+  );
+
   strictEqual(stdout.includes('\n  open-channel '), true);
   strictEqual(stdout.includes('\n  get-node-credentials '), true);
 

@@ -18,8 +18,12 @@ export type PolarTool = {
 
   Use this method to check that the Polar app runs
 
+  If the bridge does not send the full answer within the timeout, the method
+  rejects with 503 FailedToConnectToPolarBridge.
+
   {
     polar: <Polar Bridge Object>
+    [timeout]: <Maximum Milliseconds Number> // Default: no limit
   }
 
   @returns via Promise
@@ -27,8 +31,15 @@ export type PolarTool = {
     tools: [<Polar Tool Object>]
   }
 */
-export default async (args: {polar: Polar}): Promise<{tools: PolarTool[]}> => {
-  const res = await requestBridge({path: '/api/mcp/tools', polar: args.polar});
+export default async (args: {
+  polar: Polar;
+  timeout?: number;
+}): Promise<{tools: PolarTool[]}> => {
+  const res = await requestBridge({
+    path: '/api/mcp/tools',
+    polar: args.polar,
+    timeout: args.timeout,
+  });
 
   return res as {tools: PolarTool[]};
 };

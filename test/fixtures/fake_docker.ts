@@ -1,5 +1,5 @@
 import type {PolarDocker} from '../../src/index.js';
-import type {PolarDockerArgs} from '../../src/index.js';
+import type {DockerMakerArgs} from '../../src/polar_cli/index.js';
 
 export type FakeExecute = {args: object; tool: string};
 
@@ -11,9 +11,9 @@ type FakeDockerArgs = {
 /** Get a Docker backend factory with a fake execute that records each call */
 export const fakeDocker = (args: FakeDockerArgs = {}) => {
   const executed: FakeExecute[] = [];
-  const made: PolarDockerArgs[] = [];
+  const made: DockerMakerArgs[] = [];
 
-  const make = (makeArgs: PolarDockerArgs): {polar: PolarDocker} => {
+  const make = (makeArgs: DockerMakerArgs): {polar: PolarDocker} => {
     made.push(makeArgs);
 
     const execute = async (tool: string, toolArgs: object) => {
@@ -22,7 +22,7 @@ export const fakeDocker = (args: FakeDockerArgs = {}) => {
       return args.respond?.({args: toolArgs, tool}) ?? {success: true};
     };
 
-    return {polar: {dataDir: makeArgs.dataDir || '/fake', execute}};
+    return {polar: {dataDir: makeArgs.dataDir, execute}};
   };
 
   return {executed, made, make};

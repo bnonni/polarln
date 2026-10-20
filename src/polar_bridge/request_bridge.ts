@@ -1,6 +1,8 @@
 import type {Polar} from '../typescript/index.js';
 import type {PolarError} from '../typescript/index.js';
 import errorFromPolar from './error_from_polar.js';
+import fetchJson from './fetch_json.js';
+import type {JsonAnswer} from './fetch_json.js';
 
 const errorOf = (json: unknown) => (json as {error?: unknown})?.error;
 const isPolar = (n: Partial<Polar> | undefined) =>
@@ -15,11 +17,26 @@ type RequestBridgeArgs = {
   path: string;
   /** Polar Bridge Object */
   polar: Polar;
+  /** Maximum Milliseconds for the Request (default: no limit) */
+  timeout?: number;
   /** Tool Name String */
   tool?: string;
 };
 
 /** Send a request to the Polar bridge
+
+  The timeout covers the connect, the headers, and the body. A request that
+  does not get the full answer in time rejects with 503
+  FailedToConnectToPolarBridge, with a TimeoutError as err. The timeout ends
+  the wait, also if fetch ignores the signal.
+
+  {
+    [body]: <POST Body Object>
+    path: <URL Path String>
+    polar: <Polar Bridge Object>
+    [timeout]: <Maximum Milliseconds Number>
+    [tool]: <Tool Name String>
+  }
 
   @returns via Promise
   <Response JSON Object>
@@ -37,29 +54,32 @@ export default async (args: RequestBridgeArgs): Promise<unknown> => {
     ? {method: 'GET'}
     : {body: JSON.stringify(args.body), headers: jsonHeaders, method: 'POST'};
 
-  let res: Response;
+  let answer: JsonAnswer;
 
   try {
-    res = await args.polar.fetch(`${args.polar.url}${args.path}`, init);
+    answer = await fetchJson({
+      fetch: args.polar.fetch,
+      init,
+      timeout: args.timeout,
+      url: `${args.polar.url}${args.path}`,
+    });
   } catch (err) {
     throw [503, 'FailedToConnectToPolarBridge', {...details, err}];
   }
 
-  const json = await res.json().catch(() => undefined);
-
-  if (res.ok && json !== undefined) {
-    return json;
+  if (answer.ok && answer.json !== undefined) {
+    return answer.json;
   }
 
-  const err = errorOf(json);
+  const err = errorOf(answer.json);
 
-  if (res.status === polarToolFailedStatus && typeof err === 'string') {
+  if (answer.status === polarToolFailedStatus && typeof err === 'string') {
     throw errorFromPolar({err, tool: args.tool || ''});
   }
 
   throw [
     503,
     'UnexpectedPolarBridgeResponse',
-    {...details, err, status: res.status},
+    {...details, err, status: answer.status},
   ] satisfies PolarError;
 };
