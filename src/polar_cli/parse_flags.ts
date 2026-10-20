@@ -10,6 +10,8 @@ type Values = {[flag: string]: boolean | string | undefined};
 
 /** Flags That All Commands Take */
 export const globalOptions = {
+  backend: {type: 'string'},
+  'data-dir': {type: 'string'},
   help: {short: 'h', type: 'boolean'},
   url: {type: 'string'},
 } satisfies ParseArgsOptionsConfig;

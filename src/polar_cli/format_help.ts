@@ -1,6 +1,7 @@
 import type {PolarTool} from '../polar_bridge/index.js';
 import {commandName} from './names.js';
 import {flagName} from './names.js';
+import type {BackendName} from './select_backend.js';
 
 type Property = {
   default?: unknown;
@@ -13,8 +14,31 @@ type Row = [string, string];
 
 const globalRows: Row[] = [
   ['--help, -h', 'Show the help.'],
-  ['--url <url>', 'Polar bridge base URL (default: http://localhost:37373).'],
+  [
+    '--backend <name>',
+    'Backend: bridge (the Polar app) or docker (no Polar app). ' +
+      'Default: $POLARLN_BACKEND, else bridge.',
+  ],
+  [
+    '--url <url>',
+    'Bridge backend only. Polar bridge base URL ' +
+      '(default: http://localhost:37373, or the port in $POLAR_MCP_PORT).',
+  ],
+  [
+    '--data-dir <path>',
+    'Docker backend only. Data directory ' +
+      '(default: $POLARLN_DATA_DIR, else ~/.polarln).',
+  ],
 ];
+const intros: {[backend in BackendName]: string[]} = {
+  bridge: ['Run a Polar bridge tool. The Polar desktop app must run.'],
+  docker: [
+    'Run a Polar tool on Docker, without the Polar app. Docker must run.',
+    'The docker backend supports only bitcoind and LND nodes.',
+  ],
+};
+const notSupported =
+  'The docker backend does not support this command yet (error 501).';
 const sentenceEnd = /[.!?]$/;
 const sentenceStop = /\.(?:\s|$)/;
 
@@ -71,14 +95,30 @@ const flagRow = ([name, property]: [string, Property], required: string[]) => {
   return [left, notes.filter(Boolean).join(' ')] satisfies Row;
 };
 
+// Get the command list rows of tools
+const commandRows = (tools: PolarTool[]) => {
+  return tools.map(({description, name}): Row => {
+    return [commandName(name), description.split(sentenceStop)[0] || ''];
+  });
+};
+
 /** Get the help text of a command
 
-  <Polar Tool Object>
+  {
+    tool: <Polar Tool Object>
+    unsupported: [<Tool Name That the Backend Does Not Support String>]
+  }
 
   @returns
   <Help Text String>
 */
-export const commandHelp = (tool: PolarTool) => {
+export const commandHelp = ({
+  tool,
+  unsupported,
+}: {
+  tool: PolarTool;
+  unsupported: string[];
+}) => {
   const required = tool.inputSchema.required || [];
 
   const entries = Object.entries(tool.inputSchema.properties) as [
@@ -94,11 +134,14 @@ export const commandHelp = (tool: PolarTool) => {
 
   const rows = sorted.map(entry => flagRow(entry, required));
 
+  const notes = unsupported.includes(tool.name) ? [notSupported, ''] : [];
+
   return [
     `Usage: polarln ${commandName(tool.name)} [flags]`,
     '',
     tool.description,
     '',
+    ...notes,
     'Flags:',
     columns([...rows, ...globalRows]),
     '',
@@ -107,27 +150,51 @@ export const commandHelp = (tool: PolarTool) => {
 
 /** Get the help text of all commands
 
-  [<Polar Tool Object>]
+  The tools that the backend does not support show in a separate list
+
+  {
+    backend: <Backend Name String>
+    tools: [<Polar Tool Object>]
+    unsupported: [<Tool Name That the Backend Does Not Support String>]
+  }
 
   @returns
   <Help Text String>
 */
-export const commandsHelp = (tools: PolarTool[]) => {
-  const rows = tools.map(({description, name}): Row => {
-    return [commandName(name), description.split(sentenceStop)[0] || ''];
-  });
+export const commandsHelp = ({
+  backend,
+  tools,
+  unsupported,
+}: {
+  backend: BackendName;
+  tools: PolarTool[];
+  unsupported: string[];
+}) => {
+  const isSupported = (tool: PolarTool) => !unsupported.includes(tool.name);
+
+  const others = tools.filter(tool => !isSupported(tool));
+
+  const otherLines = !others.length
+    ? []
+    : [
+        `Commands that the ${backend} backend does not support yet (error 501):`,
+        columns(commandRows(others)),
+        '',
+      ];
 
   return [
     'Usage: polarln <command> [flags]',
     '',
-    'Run a Polar bridge tool. The Polar desktop app must run.',
+    ...intros[backend],
     '',
     'Commands:',
-    columns(rows),
+    columns(commandRows(tools.filter(isSupported))),
     '',
+    ...otherLines,
     'Flags for all commands:',
     columns(globalRows),
     '',
+    'Put the flags after the command: polarln list-networks --backend docker',
     'Run "polarln <command> --help" to see the flags of a command.',
     'Run "polarln --version" to see the version.',
     '',

@@ -31,6 +31,7 @@ const run = async (
 
   const code = await runCli({
     argv,
+    env: {},
     fetch: polar.fetch,
     stderr: text => stderr.push(text),
     stdout: text => stdout.push(text),
@@ -260,4 +261,34 @@ test('--version shows the version without the bridge', async () => {
   strictEqual(code, 0);
   strictEqual(stdout, '1.2.3\n');
   deepStrictEqual(requests, []);
+});
+
+test('The bridge commands come from the live tools, with no 501 list', async () => {
+  const [first] = bundledTools;
+
+  // A Polar version with a new tool and with no list_networks tool
+  const tools = [
+    ...bundledTools.filter(({name}) => name !== 'list_networks'),
+    {...first, name: 'new_tool'},
+  ];
+
+  const live = (request: FakeRequest) => {
+    return request.method === 'GET' ? {body: {tools}} : {body: {}};
+  };
+
+  const help = await run([], {respond: live});
+
+  strictEqual(help.code, 0);
+  strictEqual(help.stdout.includes('\n  new-tool '), true);
+  strictEqual(help.stdout.includes('\n  list-networks '), false);
+  strictEqual(help.stdout.includes('error 501'), false);
+
+  const commandHelp = await run(['mint-tap-asset', '--help'], {respond: live});
+
+  strictEqual(commandHelp.stdout.includes('error 501'), false);
+
+  const {code, requests} = await run(['new-tool'], {respond: live});
+
+  strictEqual(code, 0);
+  deepStrictEqual(executed(requests), [{arguments: {}, tool: 'new_tool'}]);
 });

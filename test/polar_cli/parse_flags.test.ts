@@ -28,6 +28,12 @@ test('Flags give typed arguments', () => {
   });
 });
 
+test('Global flags are not tool arguments', () => {
+  const argv = ['--label', 'a', '--backend', 'docker', '--data-dir', '/x'];
+
+  deepStrictEqual(parseFlags({argv, tool}), {args: {label: 'a'}, help: false});
+});
+
 test('Help does not need the required flags', () => {
   deepStrictEqual(parseFlags({argv: ['-h', '--url', 'http://h:1'], tool}), {
     args: {},

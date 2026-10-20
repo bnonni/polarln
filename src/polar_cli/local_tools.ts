@@ -8,7 +8,7 @@ export type LocalTool = PolarTool & {
   method: (args: PolarArgs<object>) => Promise<unknown>;
 };
 
-/** Tools that polarln runs itself, not through the Polar bridge */
+/** Tools that polarln runs itself, not as a Polar tool */
 const localTools: LocalTool[] = [
   {
     description:
