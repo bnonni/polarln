@@ -3,15 +3,14 @@
 import type {GetNewBitcoinAddressArgs} from '../../polar_methods/index.js';
 import type {BitcoinNode} from '../../typescript/index.js';
 import type {LightningNode} from '../../typescript/index.js';
-import type {LndNode} from '../../typescript/index.js';
 import type {Network} from '../../typescript/index.js';
 import * as bitcoind from '../bitcoind_service.js';
 import * as lnd from '../lnd_service.js';
 import {networkById} from '../network_file.js';
 import {findBitcoinNode} from './find_node.js';
 import {findLightningNode} from './find_node.js';
+import {hasLnd} from './find_node.js';
 import type {ToolArgs} from './types.js';
-import {validateDockerImplementation} from './validate.js';
 import {validateNetworkId} from './validate.js';
 
 // Get a node by name (a bitcoin node first), or the first node
@@ -43,7 +42,9 @@ const findAnyNode = ({
 
 /** Get a new address from a bitcoin or a lightning node
 
-  The default node is the first bitcoin node
+  The default node is the first bitcoin node. A lightning node must be an LND
+  or a litd node. As in Polar, a litd node gives an address of its lnd
+  daemon.
 */
 export default async ({args, folder}: ToolArgs<GetNewBitcoinAddressArgs>) => {
   validateNetworkId(args.networkId);
@@ -52,14 +53,16 @@ export default async ({args, folder}: ToolArgs<GetNewBitcoinAddressArgs>) => {
 
   const node = findAnyNode({network, nodeName: args.nodeName});
 
-  if (node.type === 'lightning') {
-    validateDockerImplementation(node.implementation);
+  if (node.type === 'lightning' && !hasLnd(node)) {
+    throw new Error(
+      `polarDocker does not support ${node.implementation} nodes yet`,
+    );
   }
 
   const address =
     node.type === 'bitcoin'
       ? await bitcoind.getNewAddress(node)
-      : (await lnd.getNewAddress(node as LndNode)).address;
+      : (await lnd.getNewAddress(node)).address;
 
   return {
     success: true,

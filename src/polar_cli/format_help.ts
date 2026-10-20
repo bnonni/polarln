@@ -34,7 +34,11 @@ const intros: {[backend in BackendName]: string[]} = {
   bridge: ['Run a Polar bridge tool. The Polar desktop app must run.'],
   docker: [
     'Run a Polar tool on Docker, without the Polar app. Docker must run.',
-    'The docker backend supports only bitcoind and LND nodes.',
+    'The commands that list, start, stop, rename, or delete networks, and the',
+    'commands that start or stop nodes, work with all Polar node kinds.',
+    'The lightning commands support LND and litd nodes.',
+    'The commands that create networks, or add, remove, rename, or change',
+    'nodes, work only with bitcoind and LND nodes.',
   ],
 };
 const notSupported =

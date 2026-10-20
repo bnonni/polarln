@@ -5,7 +5,7 @@ import type {LightningNode} from '../../typescript/index.js';
 import type {LndNode} from '../../typescript/index.js';
 import type {Network} from '../../typescript/index.js';
 import type {PolarNode} from '../../typescript/index.js';
-import {validateDockerImplementation} from './validate.js';
+import {lndImplementations} from '../docker_configs.js';
 
 type Args = {
   network: Network;
@@ -101,7 +101,24 @@ export const findNode = ({network, nodeName}: Args): PolarNode => {
   return node;
 };
 
-/** Get an LND node by name
+/** Check if a node has an lnd daemon that the LND tools can use
+
+  An LND node and a litd node have an lnd daemon. Polar uses the LND service
+  for both.
+
+  <Node Object>
+
+  @returns
+  <Node Has an lnd Daemon Bool>
+*/
+export const hasLnd = (node: PolarNode): node is LndNode =>
+  lndImplementations.includes(node.implementation);
+
+/** Get an LND or litd node by name
+
+  A litd node has an integrated lnd daemon. As in Polar, the LND tools use
+  the lnd TLS cert, the lnd admin macaroon, and the grpc port of the litd
+  node.
 
   {
     network: <Network Object>
@@ -112,12 +129,16 @@ export const findNode = ({network, nodeName}: Args): PolarNode => {
   <Error>
 
   @returns
-  <LND Node Object>
+  <LND Node Object> // A litd node has the same lnd paths and grpc port
 */
 export const findLndNode = ({network, nodeName}: Args): LndNode => {
   const node = findLightningNode({network, nodeName});
 
-  validateDockerImplementation(node.implementation);
+  if (!hasLnd(node)) {
+    throw new Error(
+      `polarDocker does not support ${node.implementation} nodes yet`,
+    );
+  }
 
-  return node as LndNode;
+  return node;
 };

@@ -12,6 +12,7 @@ import * as lnd from './lnd_service.js';
 import {containerName} from './node_names.js';
 import projectContainers from './project_containers.js';
 import setStatus from './set_status.js';
+import {hasLnd} from './tools/find_node.js';
 import {AbortWaitError} from './wait_for.js';
 import {delay} from './wait_for.js';
 
@@ -28,7 +29,7 @@ type SetNode = (name: string, status: Status, error?: Error) => void;
 
 // polarDocker has no startup probe for these node kinds, so the state of the
 // container gives the status
-const containerChecked = new Set(['c-lightning', 'eclair', 'litd', 'tapd']);
+const containerChecked = new Set(['c-lightning', 'eclair', 'tapd']);
 
 const mineDelayMs = 2000;
 
@@ -38,7 +39,8 @@ const walletErrors: {[reason: string]: string} = {
   'wallet-not-initialized': 'The LND wallet does not exist',
 };
 
-// Connect each lightning node to all of the others, so each node knows the graph
+// Connect each lightning node to all of the others, so each node knows the
+// graph. The nodes are the LND nodes and the litd nodes.
 const connectAllPeers = async (
   nodes: LndNode[],
   lnd: StartupServices['lnd'],
@@ -97,15 +99,21 @@ const setContainerStatuses = async (args: {
 
 /** Wait for started nodes, and set their statuses
 
-  After the bitcoind nodes are online, mine 1 block. After the LND nodes are
-  online, connect all of the LND nodes of the network to each other. A node
-  that does not start gets the Error status. An LND node with a wallet that
-  stays locked also gets the Error status, with an error message.
+  After the bitcoind nodes are online, mine 1 block. After the LND and litd
+  nodes are online, connect all of these nodes of the network to each other.
+  A node that does not start gets the Error status. A node with an lnd
+  wallet that stays locked also gets the Error status, with an error message.
 
-  polarDocker has no startup probe for tapd, litd, c-lightning, and eclair
-  nodes. After the LND nodes are online, such a node gets the Started status
-  if its container runs, else the Error status. This check is weaker than
-  the Polar check, which waits for the node RPC.
+  A litd node gets the LND probe on its lnd grpc port: the lnd state must be
+  active. This check is weaker than the Polar check, which waits for all of
+  the litd sub-servers (litdService.waitUntilOnline). Thus a litd node can
+  have the Started status before its tapd, loop, pool, and faraday servers
+  run.
+
+  polarDocker has no startup probe for tapd, c-lightning, and eclair nodes.
+  After the LND and litd nodes are online, such a node gets the Started
+  status if its container runs, else the Error status. This check is weaker
+  than the Polar check, which waits for the node RPC.
 
   {
     folder: <Data Folder Object>
@@ -134,7 +142,7 @@ export default async ({
   ];
 
   const bitcoin = started.filter(n => n.type === 'bitcoin');
-  const lndNodes = started.filter(n => n.implementation === 'LND');
+  const lndNodes = started.filter(hasLnd);
 
   const setNode: SetNode = (name, status, error) =>
     setStatus({error, network, only: name, status});
@@ -176,10 +184,7 @@ export default async ({
 
   if (!!lnOnline.length) {
     await Promise.all(lnOnline);
-    await connectAllPeers(
-      network.nodes.lightning.filter(n => n.implementation === 'LND'),
-      services.lnd,
-    );
+    await connectAllPeers(network.nodes.lightning.filter(hasLnd), services.lnd);
   }
 
   const others = started.filter(n => containerChecked.has(n.implementation));

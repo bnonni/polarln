@@ -260,3 +260,47 @@ test('The container check runs after the LND nodes are online', async () => {
     'The tapd node gets its status after the LND node is online',
   );
 });
+
+test('A litd node gets the LND probe and joins the peer connections', async () => {
+  const network = makeNetwork();
+  const [alice, bob] = network.nodes.lightning;
+
+  // bob is a litd node, with an integrated lnd daemon
+  Object.assign(bob, {implementation: 'litd', lndName: 'bob'});
+
+  const probed: string[] = [];
+  const connected: string[] = [];
+
+  const services: StartupServices = {
+    ...fakeServices({}),
+    lnd: {
+      connectPeers: async ({node}) => {
+        connected.push(node.name);
+      },
+      getInfo: async node => ({
+        alias: node.name,
+        blockHeight: 1,
+        numActiveChannels: 0,
+        numInactiveChannels: 0,
+        numPendingChannels: 0,
+        pubkey: `${node.name}-key`,
+        rpcUrl: `${node.name}-key@${node.name}:9735`,
+        syncedToChain: true,
+      }),
+      waitUntilOnline: async node => {
+        probed.push(node.name);
+      },
+    },
+  };
+
+  // The docker runner throws, so no container check runs
+  const {folder} = folderOf();
+
+  await monitorStartup({folder, network, nodes: [alice, bob], services});
+
+  deepStrictEqual(
+    [probed, connected.sort(), bob.status],
+    [['alice', 'bob'], ['alice', 'bob'], 'Started'],
+    'The litd node got the lnd probe and the peer connections',
+  );
+});

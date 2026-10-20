@@ -34,6 +34,9 @@ export type PolarDockerArgs = {
   different folder with a container name or the compose project of the
   network gives 409 ContainerNameInUse.
 
+  The Lightning tools also work on litd nodes, with the integrated lnd
+  daemon, as in Polar.
+
   The backend makes only bitcoind and LND nodes. It has these tools:
   - Network tools: list_networks, create_network, start_network, stop_network,
     delete_network, and rename_network

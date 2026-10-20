@@ -112,6 +112,14 @@ export const volumeSubDirs: {
   litd: ['lit', 'lnd', 'tapd'],
 };
 
+/** Node Implementations With an lnd Daemon
+
+  Polar lightningFactory gives litd nodes the LND service, because a litd
+  node has an integrated lnd daemon. The tlsCert and adminMacaroon paths and
+  the grpc port of a litd node are the lnd values.
+*/
+export const lndImplementations: NodeImplementation[] = ['LND', 'litd'];
+
 /** Node Implementations of Polar, in the Polar Order */
 export const polarImplementations: NodeImplementation[] = [
   'LND',
