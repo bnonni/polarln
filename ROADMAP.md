@@ -5,7 +5,7 @@ This file shows the planned work for polarln. The order can change.
 ## Done
 
 - Phases 0-2 (2026-10-15): the tooling, 48 methods for the Polar bridge tools, and `getNodeCredentials`.
-- Phase 3 (2026-10-17): the `polarln` CLI. Each Polar bridge tool is a command. The commands come from the live tool schemas.
+- Phase 3 (2026-10-17): the `polarln` CLI. Each Polar bridge tool is a command. The commands come from the live tool schemas. With `--backend docker` (2026-10-20), the commands come from the bundled tool schemas.
 - Release 0.1.0 (2026-10-17): polarln is on npm.
 - CI (2026-10-19): GitHub Actions runs lint, test, and build on each push to `main` and on each pull request.
 - Live UI test (2026-10-19): 16 tests on a Polar network with 3 LND nodes and 1 bitcoind node. The results are in the backlog item "Live network changes from the CLI". The README shows the `mine-blocks` workaround.
@@ -42,11 +42,17 @@ Next phases:
       1. Done (2026-10-19): the 10 node tools: `add_node`, `remove_node`, `start_node`, `stop_node`, `restart_node`, `rename_node`, `list_node_versions`, `get_default_node_command`, `update_node_command`, and `set_lightning_backend`. Live test: each tool on a started network with 2 bitcoind nodes and 3 LND nodes. The test takes 47 s.
       2. Done (2026-10-19): the 6 bitcoin tools: `mine_blocks`, `get_blockchain_info`, `get_bitcoin_wallet_info`, `send_bitcoin`, `get_new_bitcoin_address`, and `set_auto_mine_mode`. In Polar, `set_auto_mine_mode` sets only the mode value in memory: the bridge tool does not start the mine timer and does not save the mode. `polarDocker` saves the mode and does not mine.
       3. Done (2026-10-19): the 8 lightning tools: `open_channel`, `close_channel`, `list_channels`, `get_node_info`, `get_wallet_balance`, `deposit_funds`, `create_invoice`, and `pay_invoice`, with the Polar `mappers.ts`. Live test: all 30 tools on a started network with 2 bitcoind nodes and 3 LND nodes, also a 2-hop payment over a private channel. The test takes 64 s. A run under Node from `dist` also passes.
-   4. The CLI backend flag and the bundled tool schema.
+   4. Done (2026-10-20): the CLI backend flag and the bundled tool schema. `--backend docker` or `POLARLN_BACKEND=docker` selects the Docker backend, and `--data-dir` sets its data directory. The docker commands come from `src/polar_cli/bundled_tools.ts` (Polar v4.0.0), so the help works without Docker. The commands that `polarDocker` does not support reject with 501. The close and pay streams of lnd now end when the gRPC client closes, so each command process exits. A missing Docker gives `503 DockerNotAvailable`. Live test: `pnpm check-cli` runs 15 commands with `node dist/cli.js`, and `list-networks` with bun from `dist` and from `src`. Each process exits less than 25 ms after its last output. The test takes about 20 s.
 2. tapd and litd, 1-2 weeks.
 3. Core Lightning, Eclair, and zip import and export, 1-2 weeks.
 
 ## Backlog
+
+### Docker backend follow-ups
+
+1. Docker names for each data directory. The container names (`polarln-n<id>-<name>`) and the compose project name come from the network id only. Thus, networks with the same id in 2 data directories use the same containers. See `src/polar_docker/node_names.ts` and `src/polar_docker/compose_file.ts`.
+2. A timeout for each `docker compose` command. Now a stuck `docker` command blocks the tool with no limit (`src/polar_docker/run_compose.ts`).
+3. Global CLI flags before the command, for example `polarln --backend docker list-networks`. Now this is the usage error `ExpectedCommandBeforeFlags`.
 
 ### Live network changes from the CLI
 

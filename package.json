@@ -1,7 +1,7 @@
 {
   "name": "polarln",
   "version": "0.1.0",
-  "description": "Polar Lightning client methods and node credentials over the Polar v4 HTTP bridge",
+  "description": "Polar Lightning client methods, CLI, and node credentials, over the Polar v4 HTTP bridge or on Docker",
   "keywords": [
     "bitcoin",
     "lightning-network",

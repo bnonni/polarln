@@ -2,15 +2,15 @@
 
 TypeScript client methods for [Polar Lightning](https://lightningpolar.com/). Use them, or the `polarln` command, to control Polar regtest networks from scripts, tests, and a shell. Use `getNodeCredentials` to connect [`lightning`](https://github.com/alexbosworth/lightning), [`tapass`](https://github.com/bnonni/tapass), and [`litterm`](https://github.com/bnonni/litterm) to Polar nodes.
 
-By default, polarln sends requests to the HTTP bridge of the Polar v4 desktop app. The `polarDocker` backend (preview) runs some tools on Docker, without the Polar app. See [Docker backend](#docker-backend-preview).
+By default, polarln sends requests to the HTTP bridge of the Polar v4 desktop app. The `polarDocker` backend (preview) runs some tools on Docker, without the Polar app. See [Docker backend](#docker-backend-preview). The `polarln` CLI uses the bridge, or Docker with `--backend docker`.
 
 ## Requirements
 
-- Polar v4.0.0 or later. The Polar app must run. The bridge listens on `http://localhost:37373`.
+- For the bridge backend (the default): Polar v4.0.0 or later. The Polar app must run. The bridge listens on `http://localhost:37373`.
 - Node.js 22.12 or later.
 - For the Docker backend: Docker with Docker Compose v2. The Polar app is not necessary.
 
-The Polar bridge does not work in CI without a desktop session.
+The Polar bridge does not work in CI without a desktop session. In CI, use the Docker backend.
 
 ## Install
 
@@ -70,7 +70,7 @@ The preview supports bitcoind and LND nodes, and these tools:
 - Bitcoin tools: `getBitcoinWalletInfo`, `getBlockchainInfo`, `getNewBitcoinAddress`, `mineBlocks`, `sendBitcoin`, and `setAutoMineMode`.
 - Lightning tools: `closeChannel`, `createInvoice`, `depositFunds`, `getNodeInfo`, `getWalletBalance`, `listChannels`, `openChannel`, and `payInvoice`.
 
-The tapd and litd tools, and the import and export tools, reject with `501`. The CLI uses only the bridge.
+The tapd and litd tools, and the import and export tools, reject with `501`. To use this backend in the CLI, see [CLI backends](#cli-backends).
 
 Differences from the Polar app:
 
@@ -88,7 +88,7 @@ As in Polar, `startNetwork` returns after the nodes are online. It mines 1 block
 
 ## CLI
 
-The `polarln` command runs each Polar bridge tool from a shell. Each tool is a command, and each tool argument is a flag. Install it with `npm install -g polarln`, or run it with `npx polarln`:
+The `polarln` command runs each Polar tool from a shell. Each tool is a command, and each tool argument is a flag. Install it with `npm install -g polarln`, or run it with `npx polarln`:
 
 ```sh
 polarln list-networks
@@ -97,17 +97,45 @@ polarln mine-blocks --network-id 4 --blocks 6
 polarln get-node-credentials --network-id 4 --node-name bob
 ```
 
-The bridge runs each tool in the Polar app, so the Polar app shows the change. One exception: after `add-node`, the chart shows no channel lines until the next chart sync.
+With the bridge, the Polar app runs each tool, so the Polar app shows the change. One exception: after `add-node`, the chart shows no channel lines until the next chart sync.
 
-- Run `polarln --help` to see all commands. The command list comes from the running Polar app, so a new Polar tool is also a new command.
+- Run `polarln --help` to see all commands. With the bridge, the command list comes from the running Polar app, so a new Polar tool is also a new command. With Docker, the list comes from the bundled Polar v4.0.0 tool schemas, and the help works without Docker.
 - Run `polarln <command> --help` to see the flags of a command.
 - A boolean flag has no value: `--is-private`. Use `--no-auto-fund` for false.
 - An array flag takes JSON: `--nodes '[{"implementation": "litd", "count": 2}]'`.
 - Use `--url` to set a different bridge URL.
+- Put the flags after the command: `polarln list-networks --backend docker`.
 
 The result goes to stdout as JSON. An error goes to stderr as one JSON line: `[code, message, details]`. The exit code is 0 for success, 1 for a failed command, and 2 for a usage error.
 
-The usage errors are `UnknownCommand`, `ExpectedCommandBeforeFlags`, `InvalidFlags`, `MissingRequiredFlags`, `ExpectedNumberForFlag`, `ExpectedJsonForFlag`, and `ExpectedAllowedValueForFlag`.
+The usage errors are `UnknownCommand`, `ExpectedCommandBeforeFlags`, `InvalidFlags`, `MissingRequiredFlags`, `ExpectedNumberForFlag`, `ExpectedJsonForFlag`, `ExpectedAllowedValueForFlag`, `ExpectedAllowedValueForEnv`, and `UnexpectedFlagForBackend`.
+
+### CLI backends
+
+The CLI runs each command with one backend:
+
+| Setting        | Flag                         | Environment variable         | Default                  | Backend |
+| -------------- | ---------------------------- | ---------------------------- | ------------------------ | ------- |
+| Backend        | `--backend <bridge\|docker>` | `POLARLN_BACKEND`            | `bridge`                 | all     |
+| Data directory | `--data-dir <path>`          | `POLARLN_DATA_DIR`           | `~/.polarln`             | docker  |
+| Bridge URL     | `--url <url>`                | `POLAR_MCP_PORT` (port only) | `http://localhost:37373` | bridge  |
+
+To use Docker for all commands in a shell:
+
+```sh
+export POLARLN_BACKEND=docker
+polarln create-network --name test
+polarln start-network --network-id 1
+polarln open-channel --network-id 1 --from-node alice --to-node bob --sats 250000
+```
+
+Rules:
+
+- The flag comes before the environment variable. An empty `--backend` or `POLARLN_BACKEND` value is the same as no value.
+- `--url` works only with the bridge, and `--data-dir` works only with Docker. A flag of the other backend is a usage error.
+- With Docker, the commands that `polarDocker` does not support show in a separate help list. These commands reject with `501`.
+- If the Docker backend code cannot load, a docker command fails with `503 FailedToLoadDockerBackend`.
+- The Docker container names (`polarln-n<id>-<name>`) and the compose project name contain only the network id. Thus, 2 networks with the same id in 2 data directories use the same containers. A start, stop, or delete in one data directory changes the containers of the other.
 
 ### Changes outside polarln
 
@@ -174,7 +202,7 @@ pnpm test
 pnpm build
 ```
 
-To test the Docker backend on Docker, run `pnpm check-docker`.
+To test the Docker backend on Docker, run `pnpm check-docker`. To test the CLI with the Docker backend under Node.js, run `pnpm check-cli`.
 
 ## License
 
