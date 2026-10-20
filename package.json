@@ -59,7 +59,7 @@
     "lint": "oxlint --type-aware --deny-warnings && oxfmt --check",
     "prepublishOnly": "pnpm lint && pnpm test && pnpm build",
     "sync-protos": "sh scripts/sync_protos.sh",
-    "test": "tsc -p tsconfig.test.json && bun test",
+    "test": "tsc -p tsconfig.test.json && BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 sh scripts/with_temp_home.sh bun test",
     "wipe": "rimraf node_modules"
   },
   "dependencies": {
