@@ -1,7 +1,6 @@
 // Ported from jamaljsr/polar (MIT): src/lib/docker/dockerService.ts
 // (saveNetworks, loadNetworks).
 
-import {mkdir} from 'node:fs/promises';
 import {readdir} from 'node:fs/promises';
 import {readFile} from 'node:fs/promises';
 import {join} from 'node:path';
@@ -9,6 +8,7 @@ import {join} from 'node:path';
 import type {Network} from '../typescript/index.js';
 import type {PolarError} from '../typescript/index.js';
 import type {DataFolder} from './data_folder.js';
+import lockNetworksFile from './lock_networks_file.js';
 import {statusCode} from './status_codes.js';
 import {statusLabel} from './status_codes.js';
 import writeFileAtomic from './write_file_atomic.js';
@@ -191,45 +191,51 @@ export const readNetworks = async ({folder}: {folder: DataFolder}) => {
   return {networks: file?.networks || []};
 };
 
-// Read the file, change the networks, and write the file
-const writeChange = async (args: {
+// Read the file, change the networks, and write the file, with the lock held
+const writeChange = (args: {
   change: (networks: Network[]) => void;
   folder: DataFolder;
-}) => {
-  const path = filePath(args.folder.dataDir);
+}) =>
+  lockNetworksFile({
+    dataDir: args.folder.dataDir,
+    use: async () => {
+      const path = filePath(args.folder.dataDir);
 
-  const file =
-    (await readNetworksFile(path)) || (await newNetworksFile(args.folder));
+      const file =
+        (await readNetworksFile(path)) || (await newNetworksFile(args.folder));
 
-  // A different version can have different keys or migrations
-  if (file.version !== fileVersion) {
-    throw new Error(
-      `polarDocker does not support the networks file version ${JSON.stringify(file.version)} (only ${fileVersion})`,
-    );
-  }
+      // A different version can have different keys or migrations
+      if (file.version !== fileVersion) {
+        throw new Error(
+          `polarDocker does not support the networks file version ${JSON.stringify(file.version)} (only ${fileVersion})`,
+        );
+      }
 
-  args.change(file.networks);
+      args.change(file.networks);
 
-  // The spread keeps the key order and the keys that polarDocker does not know
-  const json = JSON.stringify(
-    {...file, networks: file.networks.map(encodeNetwork)},
-    null,
-    2,
-  );
+      // The spread keeps the key order and the keys that polarDocker does not
+      // know
+      const json = JSON.stringify(
+        {...file, networks: file.networks.map(encodeNetwork)},
+        null,
+        2,
+      );
 
-  await mkdir(join(args.folder.dataDir, 'networks'), {recursive: true});
+      // The lock made the networks folder. Polar writes the file with no
+      // end newline.
+      await writeFileAtomic({path, text: json});
 
-  // Polar writes the file with no end newline
-  await writeFileAtomic({path, text: json});
-
-  return {networks: file.networks};
-};
+      return {networks: file.networks};
+    },
+  });
 
 /** Change the networks of a data folder
 
   The method reads the file again before each change, so that a change does
   not lose the changes of a different process. In one process, the changes
-  run one at a time. The new file replaces the old file in one step.
+  run one at a time. Between processes, the lock of the networks file makes
+  the read, the change, and the write run one at a time. The new file
+  replaces the old file in one step.
 
   The file has the Polar v4.0.0 format: the status labels become numbers, and
   the version, the charts, the key order, and the unknown keys stay. A file
@@ -243,6 +249,7 @@ const writeChange = async (args: {
 
   @throws
   <Error>
+  [409, 'NetworksFileBusy', {dataDir}]
   [503, 'FailedToReadNetworksFile', {err, path}]
 
   @returns via Promise
@@ -308,6 +315,7 @@ export const networkById = async (args: {
 
   @throws
   <Error>
+  [409, 'NetworksFileBusy', {dataDir}]
   [503, 'FailedToReadNetworksFile', {err, path}]
 
   @returns via Promise
