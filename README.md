@@ -75,7 +75,7 @@ The tapd and litd tools, and the import and export tools, reject with `501`. To 
 Differences from the Polar app:
 
 - The container names are `polarln-n<id>-<name>`, so they do not clash with the Polar containers.
-- The networks file is `networks/networks.json` in the data directory. The statuses are labels, such as `Started`, as in the bridge results.
+- The networks file is `networks/networks.json` in the data directory, in the Polar v4.0.0 format. The file has the Polar status numbers. The results have the labels, such as `Started`, as in the bridge results.
 - `startNode`, `restartNode`, and `renameNode` return after the nodes are online. `addNode` and `setLightningBackend` also wait if the network is started. Polar returns before the nodes are online.
 - `stopNetwork` also removes the containers of removed and renamed nodes.
 - `depositFunds` returns after the LND wallet shows the coins as confirmed. Polar waits 1 s.

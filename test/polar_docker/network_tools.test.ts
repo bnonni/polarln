@@ -58,9 +58,17 @@ test('A stopped network can be created, listed, renamed, and deleted', () => {
       await readFile(join(dataDir, 'networks', 'networks.json'), 'utf8'),
     );
 
+    // The file has the Polar status numbers, and the results have the labels
+    const stored = JSON.parse(
+      JSON.stringify(created.network).replaceAll(
+        '"status":"Stopped"',
+        '"status":3',
+      ),
+    );
+
     deepStrictEqual(
       file,
-      {networks: [created.network], version: 1},
+      {charts: {}, networks: [stored], version: '4.0.0'},
       'Got file',
     );
 
