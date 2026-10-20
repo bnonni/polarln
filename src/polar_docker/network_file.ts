@@ -5,6 +5,7 @@ import {writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 
 import type {Network} from '../typescript/index.js';
+import type {DataFolder} from './data_folder.js';
 
 // Version of the networks file format
 const fileVersion = 1;
@@ -15,10 +16,10 @@ const lastChanges = new Map<string, Promise<unknown>>();
 const filePath = (dataDir: string) =>
   join(dataDir, 'networks', 'networks.json');
 
-/** Read the networks of a data directory
+/** Read the networks of a data folder
 
   {
-    dataDir: <Data Directory Path String>
+    folder: <Data Folder Object>
   }
 
   @throws
@@ -29,8 +30,8 @@ const filePath = (dataDir: string) =>
     networks: [<Network Object>]
   }
 */
-export const readNetworks = async ({dataDir}: {dataDir: string}) => {
-  const json = await readFile(filePath(dataDir), 'utf8').catch(err => {
+export const readNetworks = async ({folder}: {folder: DataFolder}) => {
+  const json = await readFile(filePath(folder.dataDir), 'utf8').catch(err => {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
       return undefined;
     }
@@ -50,16 +51,17 @@ export const readNetworks = async ({dataDir}: {dataDir: string}) => {
 // Read the file, change the networks, and write the file
 const writeChange = async (args: {
   change: (networks: Network[]) => void;
-  dataDir: string;
+  folder: DataFolder;
 }) => {
-  const {networks} = await readNetworks({dataDir: args.dataDir});
+  const {dataDir} = args.folder;
+  const {networks} = await readNetworks({folder: args.folder});
 
   args.change(networks);
 
-  const path = filePath(args.dataDir);
+  const path = filePath(dataDir);
   const temp = `${path}.${process.pid}.tmp`;
 
-  await mkdir(join(args.dataDir, 'networks'), {recursive: true});
+  await mkdir(join(dataDir, 'networks'), {recursive: true});
   await writeFile(
     temp,
     `${JSON.stringify({networks, version: fileVersion}, null, 2)}\n`,
@@ -69,7 +71,7 @@ const writeChange = async (args: {
   return {networks};
 };
 
-/** Change the networks of a data directory
+/** Change the networks of a data folder
 
   The method reads the file again before each change, so that a change does
   not lose the changes of a different process. In one process, the changes
@@ -77,7 +79,7 @@ const writeChange = async (args: {
 
   {
     change: <Change the Networks Array Function>
-    dataDir: <Data Directory Path String>
+    folder: <Data Folder Object>
   }
 
   @throws
@@ -90,13 +92,14 @@ const writeChange = async (args: {
 */
 export const changeNetworks = (args: {
   change: (networks: Network[]) => void;
-  dataDir: string;
+  folder: DataFolder;
 }) => {
-  const last = lastChanges.get(args.dataDir) || Promise.resolve();
+  const {dataDir} = args.folder;
+  const last = lastChanges.get(dataDir) || Promise.resolve();
 
   const next = last.catch(() => {}).then(() => writeChange(args));
 
-  lastChanges.set(args.dataDir, next);
+  lastChanges.set(dataDir, next);
 
   return next;
 };
@@ -104,7 +107,7 @@ export const changeNetworks = (args: {
 /** Get a network by id
 
   {
-    dataDir: <Data Directory Path String>
+    folder: <Data Folder Object>
     id: <Network Id Number or String>
     [message]: <Not Found Error Message String>
   }
@@ -116,11 +119,11 @@ export const changeNetworks = (args: {
   <Network Object>
 */
 export const networkById = async (args: {
-  dataDir: string;
+  folder: DataFolder;
   id: unknown;
   message?: string;
 }) => {
-  const {networks} = await readNetworks({dataDir: args.dataDir});
+  const {networks} = await readNetworks({folder: args.folder});
 
   const id = typeof args.id === 'number' ? args.id : parseInt(String(args.id));
 
@@ -138,7 +141,7 @@ export const networkById = async (args: {
 /** Save a network in place of the network with the same id
 
   {
-    dataDir: <Data Directory Path String>
+    folder: <Data Folder Object>
     network: <Network Object>
   }
 
@@ -148,10 +151,10 @@ export const networkById = async (args: {
   @returns via Promise
 */
 export const saveNetwork = async ({
-  dataDir,
+  folder,
   network,
 }: {
-  dataDir: string;
+  folder: DataFolder;
   network: Network;
 }) => {
   await changeNetworks({
@@ -162,6 +165,6 @@ export const saveNetwork = async ({
         networks[index] = network;
       }
     },
-    dataDir,
+    folder,
   });
 };

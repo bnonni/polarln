@@ -1,6 +1,6 @@
 // Ported from jamaljsr/polar (MIT): src/utils/names.ts, src/utils/network.ts.
 
-import {containerPrefix} from './docker_configs.js';
+import type {ContainerPrefix} from './data_folder.js';
 
 const names = [
   'alice',
@@ -31,9 +31,21 @@ const names = [
   'zora',
 ];
 
-/** Get the Docker container name of a node */
-export const containerName = (node: {name: string; networkId: number}) =>
-  `${containerPrefix}-n${node.networkId}-${node.name}`;
+/** Get the Docker container name of a node
+
+  {
+    name: <Node Name String>
+    networkId: <Network Id Number>
+  }
+  <Container Prefix String>
+
+  @returns
+  <Container Name String>
+*/
+export const containerName = (
+  node: {name: string; networkId: number},
+  prefix: ContainerPrefix,
+) => `${prefix}-n${node.networkId}-${node.name}`;
 
 /** Get the name of a lightning node for a node id */
 export const lightningName = (id: number) => names[id % names.length];

@@ -8,10 +8,10 @@ import type {ToolArgs} from './types.js';
 import {validateNetworkId} from './validate.js';
 
 /** Get the wallet info of a bitcoin node (default: the first node) */
-export default async ({args, dataDir}: ToolArgs<GetBitcoinWalletInfoArgs>) => {
+export default async ({args, folder}: ToolArgs<GetBitcoinWalletInfoArgs>) => {
   validateNetworkId(args.networkId);
 
-  const network = await networkById({dataDir, id: args.networkId});
+  const network = await networkById({folder, id: args.networkId});
 
   const node = findBitcoinNode({network, nodeName: args.nodeName});
 

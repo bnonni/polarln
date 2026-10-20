@@ -8,16 +8,16 @@ import {validateNetworkId} from './validate.js';
 import {validateRequired} from './validate.js';
 
 /** Rename a network, and change its description if there is a description */
-export default async ({args, dataDir}: ToolArgs<RenameNetworkArgs>) => {
+export default async ({args, folder}: ToolArgs<RenameNetworkArgs>) => {
   validateNetworkId(args.networkId);
   validateRequired(args.name, 'Network name');
 
-  const network = await networkById({dataDir, id: args.networkId});
+  const network = await networkById({folder, id: args.networkId});
 
   network.name = args.name as string;
   network.description = args.description ?? network.description;
 
-  await saveNetwork({dataDir, network});
+  await saveNetwork({folder, network});
 
   return {
     success: true,

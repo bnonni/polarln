@@ -73,7 +73,7 @@ const renameInNetwork = (network: Network, node: PolarNode, name: string) => {
   If the node runs, the network stops before the rename and starts again after
   the rename. Polar does not wait for the start; this tool waits.
 */
-export default async ({args, dataDir}: ToolArgs<RenameNodeArgs>) => {
+export default async ({args, folder}: ToolArgs<RenameNodeArgs>) => {
   validateNetworkId(args.networkId);
   validateRequired(args.oldName, 'Old node name');
   validateRequired(args.newName, 'New node name');
@@ -87,7 +87,7 @@ export default async ({args, dataDir}: ToolArgs<RenameNodeArgs>) => {
   }
 
   const network = await networkById({
-    dataDir,
+    folder,
     id: args.networkId,
     message: `Network with ID ${args.networkId} not found`,
   });
@@ -120,18 +120,18 @@ export default async ({args, dataDir}: ToolArgs<RenameNodeArgs>) => {
   const wasStarted = node.status === 'Started';
 
   if (wasStarted) {
-    await stopNetwork({dataDir, network});
+    await stopNetwork({folder, network});
   }
 
   await renameNodeDir(network, node, newName);
 
   renameInNetwork(network, node, newName);
 
-  await saveNetwork({dataDir, network});
-  await saveComposeFile({network});
+  await saveNetwork({folder, network});
+  await saveComposeFile({folder, network});
 
   if (wasStarted) {
-    await startNetwork({dataDir, network});
+    await startNetwork({folder, network});
   }
 
   return {

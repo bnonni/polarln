@@ -20,11 +20,11 @@ import {validateRequired} from './validate.js';
 
   The channels are in the order of the nodes. In Polar, the order can change.
 */
-export default async ({args, dataDir}: ToolArgs<ListChannelsArgs>) => {
+export default async ({args, folder}: ToolArgs<ListChannelsArgs>) => {
   validateNetworkId(args.networkId);
   validateRequired(args.nodeName, 'Node name');
 
-  const network = await networkById({dataDir, id: args.networkId});
+  const network = await networkById({folder, id: args.networkId});
 
   const node = findLndNode({network, nodeName: args.nodeName});
 

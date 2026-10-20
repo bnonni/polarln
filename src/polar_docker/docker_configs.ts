@@ -30,9 +30,6 @@ export const bitcoinCredentials = {
 /** Blocks for a Confirmed Transaction */
 export const blocksTilConfirmed = 6;
 
-/** Prefix of the Container Names and the Compose Project Names */
-export const containerPrefix = 'polarln';
-
 /** Default Node Commands, Docker Images, and Volume Directories */
 export const dockerConfigs: {
   [implementation in DockerImplementation]: {

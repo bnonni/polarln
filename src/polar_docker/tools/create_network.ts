@@ -16,7 +16,7 @@ import {validateDockerImplementation} from './validate.js';
 import {validateRequired} from './validate.js';
 
 /** Create a stopped network with nodes */
-export default async ({args, dataDir}: ToolArgs<CreateNetworkArgs>) => {
+export default async ({args, folder}: ToolArgs<CreateNetworkArgs>) => {
   validateRequired(args.name, 'Network name');
 
   if (args.nodes !== undefined && !Array.isArray(args.nodes)) {
@@ -42,12 +42,12 @@ export default async ({args, dataDir}: ToolArgs<CreateNetworkArgs>) => {
       let id = Math.max(0, ...networks.map(n => n.id)) + 1;
 
       // Do not use a directory that a different program made
-      while (existsSync(join(dataDir, 'networks', `${id}`))) {
+      while (existsSync(join(folder.dataDir, 'networks', `${id}`))) {
         id += 1;
       }
 
       network = newNetwork({
-        dataDir,
+        dataDir: folder.dataDir,
         description: args.description || '',
         id,
         name,
@@ -56,10 +56,10 @@ export default async ({args, dataDir}: ToolArgs<CreateNetworkArgs>) => {
 
       networks.push(network);
     },
-    dataDir,
+    folder,
   });
 
-  await saveComposeFile({network: network as Network});
+  await saveComposeFile({folder, network: network as Network});
 
   return {
     success: true,

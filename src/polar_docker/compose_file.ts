@@ -4,8 +4,8 @@
 import type {BitcoinNode} from '../typescript/index.js';
 import type {LndNode} from '../typescript/index.js';
 import type {Network} from '../typescript/index.js';
+import type {ContainerPrefix} from './data_folder.js';
 import {bitcoinCredentials} from './docker_configs.js';
-import {containerPrefix} from './docker_configs.js';
 import {dockerConfigs} from './docker_configs.js';
 import {containerName} from './node_names.js';
 
@@ -37,7 +37,7 @@ const service = (svc: Service) => ({
   ...svc,
 });
 
-const bitcoind = (node: BitcoinNode) => {
+const bitcoind = (node: BitcoinNode, prefix: ContainerPrefix) => {
   const {name, ports} = node;
   const {imageName, volumeDirName} = dockerConfigs.bitcoind;
 
@@ -51,7 +51,7 @@ const bitcoind = (node: BitcoinNode) => {
 
   return service({
     image: node.docker.image || `${imageName}:${node.version}`,
-    container_name: containerName(node),
+    container_name: containerName(node, prefix),
     hostname: name,
     stop_grace_period: '5m',
     command: trimInside(command),
@@ -66,15 +66,15 @@ const bitcoind = (node: BitcoinNode) => {
   });
 };
 
-const lnd = (node: LndNode, backend: BitcoinNode) => {
+const lnd = (node: LndNode, backend: BitcoinNode, prefix: ContainerPrefix) => {
   const {name, ports} = node;
   const {imageName, volumeDirName} = dockerConfigs.LND;
 
   const command = mergeCommand(
     node.docker.command || dockerConfigs.LND.command,
     {
-      backendName: containerName(backend),
-      containerName: containerName(node),
+      backendName: containerName(backend, prefix),
+      containerName: containerName(node, prefix),
       name,
       rpcPass: bitcoinCredentials.pass,
       rpcUser: bitcoinCredentials.user,
@@ -83,7 +83,7 @@ const lnd = (node: LndNode, backend: BitcoinNode) => {
 
   return service({
     image: node.docker.image || `${imageName}:${node.version}`,
-    container_name: containerName(node),
+    container_name: containerName(node, prefix),
     hostname: name,
     command: trimInside(command),
     restart: 'always',
@@ -95,10 +95,13 @@ const lnd = (node: LndNode, backend: BitcoinNode) => {
 
 /** Get the docker compose file of a network
 
-  The file is JSON. JSON is valid YAML, so docker compose reads the file.
+  The file is JSON. JSON is valid YAML, so docker compose reads the file. The
+  compose project is <prefix>-network-<id>, and each container is
+  <prefix>-n<id>-<node name>.
 
   {
     network: <Network Object>
+    prefix: <Container Prefix String>
   }
 
   @throws
@@ -109,11 +112,17 @@ const lnd = (node: LndNode, backend: BitcoinNode) => {
     file: <Compose File JSON String>
   }
 */
-export default ({network}: {network: Network}): {file: string} => {
+export default ({
+  network,
+  prefix,
+}: {
+  network: Network;
+  prefix: ContainerPrefix;
+}): {file: string} => {
   const {bitcoin, lightning, tap} = network.nodes;
   const services: {[name: string]: ReturnType<typeof service>} = {};
 
-  bitcoin.forEach(node => (services[node.name] = bitcoind(node)));
+  bitcoin.forEach(node => (services[node.name] = bitcoind(node, prefix)));
 
   lightning.forEach(node => {
     if (node.implementation !== 'LND') {
@@ -125,14 +134,14 @@ export default ({network}: {network: Network}): {file: string} => {
     const backend =
       bitcoin.find(n => n.name === node.backendName) || bitcoin[0];
 
-    services[node.name] = lnd(node, backend);
+    services[node.name] = lnd(node, backend, prefix);
   });
 
   if (!!tap.length) {
     throw new Error('polarDocker does not support tapd nodes yet');
   }
 
-  const content = {name: `${containerPrefix}-network-${network.id}`, services};
+  const content = {name: `${prefix}-network-${network.id}`, services};
 
   return {file: `${JSON.stringify(content, null, 2)}\n`};
 };

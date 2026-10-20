@@ -14,7 +14,7 @@ import {validateRequired} from './validate.js';
 
   The node uses the new command after its next start
 */
-export default async ({args, dataDir}: ToolArgs<UpdateNodeCommandArgs>) => {
+export default async ({args, folder}: ToolArgs<UpdateNodeCommandArgs>) => {
   validateNetworkId(args.networkId);
   validateRequired(args.nodeName, 'Node name');
 
@@ -24,14 +24,14 @@ export default async ({args, dataDir}: ToolArgs<UpdateNodeCommandArgs>) => {
     );
   }
 
-  const network = await networkById({dataDir, id: args.networkId});
+  const network = await networkById({folder, id: args.networkId});
 
   const node = findNode({network, nodeName: args.nodeName});
 
   node.docker.command = args.command;
 
-  await saveNetwork({dataDir, network});
-  await saveComposeFile({network});
+  await saveNetwork({folder, network});
+  await saveComposeFile({folder, network});
 
   const message = !!args.command
     ? `Successfully updated custom command for node "${args.nodeName}"`

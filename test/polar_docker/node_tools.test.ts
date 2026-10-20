@@ -27,6 +27,8 @@ import {updateNodeCommand} from '../../src/index.js';
 import type {LndNode} from '../../src/index.js';
 import type {Network} from '../../src/index.js';
 import type {PolarDocker} from '../../src/index.js';
+import makePolarDocker from '../../src/polar_docker/make_polar_docker.js';
+import {fakeDockerRunner} from '../fixtures/fake_docker_runner.js';
 import {rejection} from '../fixtures/rejection.js';
 
 const withDataDir = async (use: (dataDir: string) => Promise<void>) => {
@@ -311,33 +313,62 @@ test('Node commands and backends can be changed in a stopped network', () => {
 
 test('A node with the Error status can be stopped', () => {
   return withDataDir(async dataDir => {
-    const {polar} = polarDocker({dataDir});
+    // The fake docker runner fails each up command
+    const {calls, docker} = fakeDockerRunner({
+      respond: ({args}) => {
+        if (args.includes('up')) {
+          throw {code: 1, message: 'Command failed', stderr: 'up failed'};
+        }
+
+        return '';
+      },
+    });
+
+    const {polar} = makePolarDocker({
+      dataDir,
+      docker,
+      env: {},
+      home: join(dataDir, 'home'),
+    });
 
     const {network} = await createNetwork({name: 'n', polar});
 
-    // A node with a locked LND wallet gets the Error status
-    const file = join(dataDir, 'networks', 'networks.json');
-    const json = JSON.parse(await readFile(file, 'utf8'));
+    const [code, message] = (await rejection(
+      startNode({networkId: 1, nodeName: 'alice', polar}),
+    )) as [number, string];
 
-    json.networks[0].nodes.lightning[0].status = 'Error';
+    deepStrictEqual([code, message], [503, 'PolarToolFailed'], 'Start fails');
 
-    await writeFile(file, JSON.stringify(json));
-
-    // Without the network directory, docker compose does not run
-    await rm(network.path, {force: true, recursive: true});
-
-    const [code, message, details] = (await rejection(
-      stopNode({networkId: 1, nodeName: 'alice', polar}),
-    )) as [number, string, {err: string}];
+    const alice = (await firstNetwork(polar)).nodes.lightning[0];
 
     deepStrictEqual(
-      [code, message, details.err],
+      [alice.status, alice.errorMsg],
+      ['Error', 'up failed'],
+      'The node has the Error status',
+    );
+
+    const stopped = await stopNode({networkId: 1, nodeName: 'alice', polar});
+
+    deepStrictEqual(
+      [stopped.success, stopped.nodeStatus],
+      [true, 'Stopped'],
+      'The node with the Error status stops',
+    );
+
+    deepStrictEqual(
+      calls.map(({args}) => args.slice(3)),
       [
-        404,
-        'PolarObjectNotFound',
-        `Network directory ${network.path} does not exist`,
+        ['stop', 'alice'],
+        ['up', '-d', 'alice'],
+        ['stop', 'alice'],
       ],
-      'The status check passes, and the stop runs',
+      'Got the docker compose commands',
+    );
+
+    equal(
+      calls.every(({cwd}) => cwd === network.path),
+      true,
+      'The commands run in the network directory',
     );
   });
 });

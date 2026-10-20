@@ -3,6 +3,7 @@
 
 import type {Network} from '../typescript/index.js';
 import type {PolarNode} from '../typescript/index.js';
+import type {DataFolder} from './data_folder.js';
 import monitorStartup from './monitor_startup.js';
 import {prepareStart} from './network_actions.js';
 import {saveNetwork} from './network_file.js';
@@ -10,8 +11,8 @@ import runCompose from './run_compose.js';
 import setStatus from './set_status.js';
 
 type Args = {
-  /** Data Directory Path */
-  dataDir: string;
+  /** Data Folder */
+  folder: DataFolder;
   network: Network;
   /** Node of the Network */
   node: PolarNode;
@@ -26,7 +27,7 @@ const asError = (err: unknown) =>
   status does not change.
 
   {
-    dataDir: <Data Directory Path String>
+    folder: <Data Folder Object>
     network: <Network Object>
     node: <Node of the Network Object>
   }
@@ -36,19 +37,19 @@ const asError = (err: unknown) =>
 
   @returns via Promise
 */
-export const startNode = async ({dataDir, network, node}: Args) => {
-  const save = () => saveNetwork({dataDir, network});
+export const startNode = async ({folder, network, node}: Args) => {
+  const save = () => saveNetwork({folder, network});
 
   setStatus({network, only: node.name, status: 'Starting'});
 
   await save();
 
   try {
-    await prepareStart({dataDir, network, nodes: [node]});
+    await prepareStart({folder, network, nodes: [node]});
 
     // A container in an error state does not start again without a stop
-    await runCompose({args: ['stop', node.name], network});
-    await runCompose({args: ['up', '-d', node.name], network});
+    await runCompose({args: ['stop', node.name], folder, network});
+    await runCompose({args: ['up', '-d', node.name], folder, network});
 
     await monitorStartup({network, nodes: [node]});
   } catch (err) {
@@ -68,7 +69,7 @@ export const startNode = async ({dataDir, network, node}: Args) => {
   status does not change.
 
   {
-    dataDir: <Data Directory Path String>
+    folder: <Data Folder Object>
     network: <Network Object>
     node: <Node of the Network Object>
   }
@@ -78,15 +79,15 @@ export const startNode = async ({dataDir, network, node}: Args) => {
 
   @returns via Promise
 */
-export const stopNode = async ({dataDir, network, node}: Args) => {
-  const save = () => saveNetwork({dataDir, network});
+export const stopNode = async ({folder, network, node}: Args) => {
+  const save = () => saveNetwork({folder, network});
 
   setStatus({network, only: node.name, status: 'Stopping'});
 
   await save();
 
   try {
-    await runCompose({args: ['stop', node.name], network});
+    await runCompose({args: ['stop', node.name], folder, network});
   } catch (err) {
     setStatus({error: asError(err), network, only: node.name, status: 'Error'});
 
@@ -105,6 +106,7 @@ export const stopNode = async ({dataDir, network, node}: Args) => {
   The compose file must still contain the node
 
   {
+    folder: <Data Folder Object>
     network: <Network Object>
     node: <Node Object>
   }
@@ -114,13 +116,7 @@ export const stopNode = async ({dataDir, network, node}: Args) => {
 
   @returns via Promise
 */
-export const removeContainer = async ({
-  network,
-  node,
-}: {
-  network: Network;
-  node: PolarNode;
-}) => {
-  await runCompose({args: ['stop', node.name], network});
-  await runCompose({args: ['rm', '-f', node.name], network});
+export const removeContainer = async ({folder, network, node}: Args) => {
+  await runCompose({args: ['stop', node.name], folder, network});
+  await runCompose({args: ['rm', '-f', node.name], folder, network});
 };

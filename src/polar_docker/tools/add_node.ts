@@ -19,7 +19,7 @@ import {validateRequired} from './validate.js';
 
   If the network is started, start the node and wait until it is online
 */
-export default async ({args, dataDir}: ToolArgs<AddNodeArgs>) => {
+export default async ({args, folder}: ToolArgs<AddNodeArgs>) => {
   validateNetworkId(args.networkId);
   validateRequired(args.implementation, 'Implementation');
 
@@ -35,7 +35,7 @@ export default async ({args, dataDir}: ToolArgs<AddNodeArgs>) => {
   const implementation = validateDockerImplementation(requested);
 
   const network = await networkById({
-    dataDir,
+    folder,
     id: args.networkId,
     message: `Network with ID ${args.networkId} not found`,
   });
@@ -56,11 +56,11 @@ export default async ({args, dataDir}: ToolArgs<AddNodeArgs>) => {
       ? addBitcoindNode({network, version})
       : addLndNode({network, version});
 
-  await saveNetwork({dataDir, network});
-  await saveComposeFile({network});
+  await saveNetwork({folder, network});
+  await saveComposeFile({folder, network});
 
   if (network.status === 'Started') {
-    await startNode({dataDir, network, node});
+    await startNode({folder, network, node});
   }
 
   const name = implementation === 'bitcoind' ? 'Bitcoin Core' : implementation;

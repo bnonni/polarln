@@ -21,7 +21,7 @@ const validModes = [0, 30, 60, 300, 600];
 
   As in Polar, the tool only sets the value: no blocks are mined
 */
-export default async ({args, dataDir}: ToolArgs<SetAutoMineModeArgs>) => {
+export default async ({args, folder}: ToolArgs<SetAutoMineModeArgs>) => {
   validateNetworkId(args.networkId);
 
   if (args.mode == null) {
@@ -34,11 +34,11 @@ export default async ({args, dataDir}: ToolArgs<SetAutoMineModeArgs>) => {
     );
   }
 
-  const network = await networkById({dataDir, id: args.networkId});
+  const network = await networkById({folder, id: args.networkId});
 
   network.autoMineMode = args.mode;
 
-  await saveNetwork({dataDir, network});
+  await saveNetwork({folder, network});
 
   return {
     success: true,

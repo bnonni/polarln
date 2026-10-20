@@ -7,12 +7,12 @@ import type {ToolArgs} from './types.js';
 import {validateNetworkId} from './validate.js';
 
 /** Stop all of the nodes in a network */
-export default async ({args, dataDir}: ToolArgs<StopNetworkArgs>) => {
+export default async ({args, folder}: ToolArgs<StopNetworkArgs>) => {
   validateNetworkId(args.networkId);
 
-  const network = await networkById({dataDir, id: args.networkId});
+  const network = await networkById({folder, id: args.networkId});
 
-  await stopNetwork({dataDir, network});
+  await stopNetwork({folder, network});
 
   return {
     success: true,

@@ -1,17 +1,15 @@
-import {execFile} from 'node:child_process';
 import {stat} from 'node:fs/promises';
 import {userInfo} from 'node:os';
 import {join} from 'node:path';
-import {promisify} from 'node:util';
 import {stripVTControlCharacters} from 'node:util';
 
 import type {Network} from '../typescript/index.js';
+import type {DataFolder} from './data_folder.js';
 
 // docker compose: "Cannot connect to the Docker daemon at ...". docker 29:
 // "failed to connect to the docker API at ...", "permission denied while
 // trying to connect to the docker API at ..."
 const dockerDown = /connect to the docker (?:daemon|API)\b/i;
-const run = promisify(execFile);
 
 type ComposeFailure = {code?: unknown; message: string; stderr?: string};
 
@@ -55,10 +53,12 @@ export const composeError = (args: {
 /** Run a docker compose command in the directory of a network
 
   On Linux, the containers get the host user and group ids, so that they can
-  write the volume directories
+  write the volume directories. The command runs with the docker runner of the
+  data folder.
 
   {
     args: [<docker compose Argument String>]
+    folder: <Data Folder Object>
     network: <Network Object>
   }
 
@@ -70,7 +70,15 @@ export const composeError = (args: {
     out: <Command Output String>
   }
 */
-export default async ({args, network}: {args: string[]; network: Network}) => {
+export default async ({
+  args,
+  folder,
+  network,
+}: {
+  args: string[];
+  folder: DataFolder;
+  network: Network;
+}) => {
   const {gid, uid} = userInfo();
 
   const ids =
@@ -79,8 +87,7 @@ export default async ({args, network}: {args: string[]; network: Network}) => {
   const file = join(network.path, 'docker-compose.yml');
 
   try {
-    const {stderr, stdout} = await run(
-      'docker',
+    const {stderr, stdout} = await folder.docker(
       ['compose', '-f', file, ...args],
       {
         cwd: network.path,

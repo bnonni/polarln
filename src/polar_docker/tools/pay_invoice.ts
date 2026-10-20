@@ -9,12 +9,12 @@ import {validateNetworkId} from './validate.js';
 import {validateRequired} from './validate.js';
 
 /** Pay an invoice from a lightning node */
-export default async ({args, dataDir}: ToolArgs<PayInvoiceArgs>) => {
+export default async ({args, folder}: ToolArgs<PayInvoiceArgs>) => {
   validateNetworkId(args.networkId);
   validateRequired(args.fromNode, 'fromNode name');
   validateRequired(args.invoice, 'Invoice');
 
-  const network = await networkById({dataDir, id: args.networkId});
+  const network = await networkById({folder, id: args.networkId});
 
   const node = findLndNode({network, nodeName: args.fromNode});
 

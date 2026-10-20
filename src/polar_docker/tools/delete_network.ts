@@ -14,10 +14,10 @@ import {validateNetworkId} from './validate.js';
 
   The result shows the network as it was before the delete
 */
-export default async ({args, dataDir}: ToolArgs<DeleteNetworkArgs>) => {
+export default async ({args, folder}: ToolArgs<DeleteNetworkArgs>) => {
   validateNetworkId(args.networkId);
 
-  const network = await networkById({dataDir, id: args.networkId});
+  const network = await networkById({folder, id: args.networkId});
 
   const before = structuredClone(network);
 
@@ -28,7 +28,7 @@ export default async ({args, dataDir}: ToolArgs<DeleteNetworkArgs>) => {
   ];
 
   if (statuses.some(status => status !== 'Stopped')) {
-    await stopNetwork({dataDir, network});
+    await stopNetwork({folder, network});
   }
 
   await rm(network.path, {force: true, recursive: true});
@@ -41,7 +41,7 @@ export default async ({args, dataDir}: ToolArgs<DeleteNetworkArgs>) => {
         networks.splice(index, 1);
       }
     },
-    dataDir,
+    folder,
   });
 
   return {

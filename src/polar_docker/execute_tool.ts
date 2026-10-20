@@ -1,4 +1,6 @@
 import errorFromPolar from '../polar_bridge/error_from_polar.js';
+import type {PolarError} from '../typescript/index.js';
+import type {DataFolder} from './data_folder.js';
 import type {DockerToolName} from './docker_tool_names.js';
 import addNode from './tools/add_node.js';
 import closeChannel from './tools/close_channel.js';
@@ -33,6 +35,12 @@ import updateNodeCommand from './tools/update_node_command.js';
 import type {ToolArgs} from './tools/types.js';
 
 type Tool = (args: ToolArgs<any>) => Promise<unknown>;
+
+// A tool can reject with a PolarError tuple, with its own code and details
+const isPolarError = (err: unknown): err is PolarError =>
+  Array.isArray(err) &&
+  typeof err[0] === 'number' &&
+  typeof err[1] === 'string';
 
 /** Polar Tools That the Docker Backend Supports */
 export const dockerTools: {[name in DockerToolName]: Tool} = {
@@ -70,12 +78,15 @@ export const dockerTools: {[name in DockerToolName]: Tool} = {
 
 /** Run a Polar tool on Docker
 
-  The result and the rejection have the same shape as from the Polar bridge
+  The result and the rejection have the same shape as from the Polar bridge. A
+  PolarError tuple from a tool passes through with no change. The other errors
+  get a code from their message, as the bridge errors do.
 
   {
     args: <Tool Arguments Object>
-    dataDir: <Data Directory Path String>
+    folder: <Data Folder Object>
     tool: <Tool Name String>
+    [tools]: {<Tool Name String>: <Tool Function>} // Default: dockerTools
   }
 
   @returns via Promise
@@ -83,22 +94,33 @@ export const dockerTools: {[name in DockerToolName]: Tool} = {
 
   @rejects <PolarError>
 */
-export default async (args: {args: object; dataDir: string; tool: string}) => {
+export default async (args: {
+  args: object;
+  folder: DataFolder;
+  tool: string;
+  tools?: {[name: string]: Tool};
+}) => {
+  const tools: {[name: string]: Tool} = args.tools || dockerTools;
+
   try {
-    if (!Object.hasOwn(dockerTools, args.tool)) {
+    if (!Object.hasOwn(tools, args.tool)) {
       throw new Error(
         `Unknown tool: ${args.tool} (polarDocker does not support it yet)`,
       );
     }
 
-    const result = await dockerTools[args.tool as DockerToolName]({
+    const result = await tools[args.tool]({
       args: args.args,
-      dataDir: args.dataDir,
+      folder: args.folder,
     });
 
     // Return plain JSON data, as the bridge does
     return JSON.parse(JSON.stringify(result)) as unknown;
   } catch (err) {
+    if (isPolarError(err)) {
+      throw err;
+    }
+
     const message = err instanceof Error ? err.message : String(err);
 
     throw errorFromPolar({err: message, tool: args.tool});

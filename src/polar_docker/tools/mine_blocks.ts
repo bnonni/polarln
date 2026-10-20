@@ -14,14 +14,14 @@ import {validatePositiveNumber} from './validate.js';
 const propagationDelayMs = 500;
 
 /** Mine blocks on a bitcoin node (default: 6 blocks on the first node) */
-export default async ({args, dataDir}: ToolArgs<MineBlocksArgs>) => {
+export default async ({args, folder}: ToolArgs<MineBlocksArgs>) => {
   validateNetworkId(args.networkId);
 
   const blocks = args.blocks ?? 6;
 
   validatePositiveNumber(blocks, 'Number of blocks');
 
-  const network = await networkById({dataDir, id: args.networkId});
+  const network = await networkById({folder, id: args.networkId});
 
   const node = findBitcoinNode({network, nodeName: args.nodeName});
 

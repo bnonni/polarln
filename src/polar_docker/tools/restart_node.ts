@@ -17,11 +17,11 @@ const restartDelayMs = 100;
 
   A node with the Error status only starts, as in Polar
 */
-export default async ({args, dataDir}: ToolArgs<RestartNodeArgs>) => {
+export default async ({args, folder}: ToolArgs<RestartNodeArgs>) => {
   validateNetworkId(args.networkId);
   validateRequired(args.nodeName, 'Node name');
 
-  const network = await networkById({dataDir, id: args.networkId});
+  const network = await networkById({folder, id: args.networkId});
 
   const node = findNode({network, nodeName: args.nodeName});
 
@@ -33,12 +33,12 @@ export default async ({args, dataDir}: ToolArgs<RestartNodeArgs>) => {
   }
 
   if (node.status !== 'Error') {
-    await stopNode({dataDir, network, node});
+    await stopNode({folder, network, node});
 
     await delay(restartDelayMs);
   }
 
-  await startNode({dataDir, network, node});
+  await startNode({folder, network, node});
 
   return {
     success: true,

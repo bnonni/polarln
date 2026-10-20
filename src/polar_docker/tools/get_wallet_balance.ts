@@ -9,11 +9,11 @@ import {validateNetworkId} from './validate.js';
 import {validateRequired} from './validate.js';
 
 /** Get the on-chain balance of a lightning node */
-export default async ({args, dataDir}: ToolArgs<GetWalletBalanceArgs>) => {
+export default async ({args, folder}: ToolArgs<GetWalletBalanceArgs>) => {
   validateNetworkId(args.networkId);
   validateRequired(args.nodeName, 'Node name');
 
-  const network = await networkById({dataDir, id: args.networkId});
+  const network = await networkById({folder, id: args.networkId});
 
   const node = findLndNode({network, nodeName: args.nodeName});
 

@@ -7,12 +7,12 @@ import type {ToolArgs} from './types.js';
 import {validateNetworkId} from './validate.js';
 
 /** Start all of the nodes in a network */
-export default async ({args, dataDir}: ToolArgs<StartNetworkArgs>) => {
+export default async ({args, folder}: ToolArgs<StartNetworkArgs>) => {
   validateNetworkId(args.networkId);
 
-  const network = await networkById({dataDir, id: args.networkId});
+  const network = await networkById({folder, id: args.networkId});
 
-  await startNetwork({dataDir, network});
+  await startNetwork({folder, network});
 
   return {
     success: true,

@@ -4,8 +4,8 @@ import {readNetworks} from '../network_file.js';
 import type {ToolArgs} from './types.js';
 
 /** List all networks with their nodes, ports, and file paths */
-export default async ({dataDir}: ToolArgs<object>) => {
-  const {networks} = await readNetworks({dataDir});
+export default async ({folder}: ToolArgs<object>) => {
+  const {networks} = await readNetworks({folder});
 
   return {networks};
 };

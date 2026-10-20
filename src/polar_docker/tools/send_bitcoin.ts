@@ -20,7 +20,7 @@ const propagationDelayMs = 500;
 
   If the wallet does not have the coins, the node mines them first
 */
-export default async ({args, dataDir}: ToolArgs<SendBitcoinArgs>) => {
+export default async ({args, folder}: ToolArgs<SendBitcoinArgs>) => {
   validateNetworkId(args.networkId);
   validateRequired(args.fromNode, 'From node name');
   validateRequired(args.toAddress, 'To address');
@@ -29,7 +29,7 @@ export default async ({args, dataDir}: ToolArgs<SendBitcoinArgs>) => {
   const amount = args.amount as number;
   const toAddress = args.toAddress as string;
 
-  const network = await networkById({dataDir, id: args.networkId});
+  const network = await networkById({folder, id: args.networkId});
 
   const node = findBitcoinNode({network, nodeName: args.fromNode});
 

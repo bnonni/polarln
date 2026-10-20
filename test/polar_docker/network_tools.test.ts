@@ -15,6 +15,9 @@ import {listNetworks} from '../../src/index.js';
 import {polarDocker} from '../../src/index.js';
 import {renameNetwork} from '../../src/index.js';
 import {startNetwork} from '../../src/index.js';
+import {stopNetwork} from '../../src/index.js';
+import makePolarDocker from '../../src/polar_docker/make_polar_docker.js';
+import {fakeDockerRunner} from '../fixtures/fake_docker_runner.js';
 import {rejection} from '../fixtures/rejection.js';
 
 const withDataDir = async (use: (dataDir: string) => Promise<void>) => {
@@ -115,6 +118,61 @@ test('The data directory comes from the environment', () => {
   if (POLARLN_DATA_DIR === undefined) {
     delete process.env.POLARLN_DATA_DIR;
   }
+});
+
+test('The internal maker gets the data directory from its arguments', () => {
+  const home = join(tmpdir(), 'polarln-home');
+
+  deepStrictEqual(
+    [
+      makePolarDocker({env: {}, home}).polar.dataDir,
+      makePolarDocker({env: {POLARLN_DATA_DIR: '/tmp/e'}, home}).polar.dataDir,
+      makePolarDocker({dataDir: 'x', env: {POLARLN_DATA_DIR: '/e'}, home}).polar
+        .dataDir,
+    ],
+    [join(home, '.polarln'), '/tmp/e', join(process.cwd(), 'x')],
+    'The argument comes first, then the environment, then the home',
+  );
+});
+
+test('A network stops with the docker runner of the data folder', () => {
+  return withDataDir(async dataDir => {
+    const {calls, docker} = fakeDockerRunner();
+
+    const {polar} = makePolarDocker({
+      dataDir,
+      docker,
+      env: {},
+      home: join(dataDir, 'home'),
+    });
+
+    const {network} = await createNetwork({name: 'n', polar});
+
+    const stopped = await stopNetwork({networkId: 1, polar});
+
+    deepStrictEqual(
+      [stopped.network.status, stopped.network.autoMineMode],
+      ['Stopped', 0],
+      'Got the stopped network',
+    );
+
+    deepStrictEqual(
+      calls,
+      [
+        {
+          args: [
+            'compose',
+            '-f',
+            join(network.path, 'docker-compose.yml'),
+            'down',
+            '--remove-orphans',
+          ],
+          cwd: network.path,
+        },
+      ],
+      'The runner gets the docker compose command',
+    );
+  });
 });
 
 test('Docker backend errors have the same shape as bridge errors', () => {

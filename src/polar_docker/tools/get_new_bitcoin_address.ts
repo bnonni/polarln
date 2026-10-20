@@ -45,10 +45,10 @@ const findAnyNode = ({
 
   The default node is the first bitcoin node
 */
-export default async ({args, dataDir}: ToolArgs<GetNewBitcoinAddressArgs>) => {
+export default async ({args, folder}: ToolArgs<GetNewBitcoinAddressArgs>) => {
   validateNetworkId(args.networkId);
 
-  const network = await networkById({dataDir, id: args.networkId});
+  const network = await networkById({folder, id: args.networkId});
 
   const node = findAnyNode({network, nodeName: args.nodeName});
 

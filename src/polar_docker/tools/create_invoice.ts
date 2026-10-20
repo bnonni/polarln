@@ -10,12 +10,12 @@ import {validatePositiveNumber} from './validate.js';
 import {validateRequired} from './validate.js';
 
 /** Create an invoice on a lightning node */
-export default async ({args, dataDir}: ToolArgs<CreateInvoiceArgs>) => {
+export default async ({args, folder}: ToolArgs<CreateInvoiceArgs>) => {
   validateNetworkId(args.networkId);
   validateRequired(args.nodeName, 'Node name');
   validatePositiveNumber(args.amount, 'Amount');
 
-  const network = await networkById({dataDir, id: args.networkId});
+  const network = await networkById({folder, id: args.networkId});
 
   const node = findLndNode({network, nodeName: args.nodeName});
 

@@ -1,9 +1,7 @@
 import {homedir} from 'node:os';
-import {join} from 'node:path';
-import {resolve} from 'node:path';
 
 import type {PolarDocker} from '../typescript/index.js';
-import executeTool from './execute_tool.js';
+import makePolarDocker from './make_polar_docker.js';
 
 export type PolarDockerArgs = {
   /** Data Directory Path (default: $POLARLN_DATA_DIR or ~/.polarln) */
@@ -36,15 +34,9 @@ export type PolarDockerArgs = {
   }
 */
 export default (args: PolarDockerArgs = {}): {polar: PolarDocker} => {
-  const dir =
-    args.dataDir || process.env.POLARLN_DATA_DIR || join(homedir(), '.polarln');
-
-  const dataDir = resolve(dir);
-
-  return {
-    polar: {
-      dataDir,
-      execute: (tool, toolArgs) => executeTool({args: toolArgs, dataDir, tool}),
-    },
-  };
+  return makePolarDocker({
+    dataDir: args.dataDir,
+    env: process.env,
+    home: homedir(),
+  });
 };

@@ -14,11 +14,11 @@ import {validateRequired} from './validate.js';
   a locked LND wallet. The container of this node can run. Polar stops only a
   Started node, and the error message is the Polar message.
 */
-export default async ({args, dataDir}: ToolArgs<StopNodeArgs>) => {
+export default async ({args, folder}: ToolArgs<StopNodeArgs>) => {
   validateNetworkId(args.networkId);
   validateRequired(args.nodeName, 'Node name');
 
-  const network = await networkById({dataDir, id: args.networkId});
+  const network = await networkById({folder, id: args.networkId});
 
   const node = findNode({network, nodeName: args.nodeName});
 
@@ -29,7 +29,7 @@ export default async ({args, dataDir}: ToolArgs<StopNodeArgs>) => {
     );
   }
 
-  await stopNode({dataDir, network, node});
+  await stopNode({folder, network, node});
 
   return {
     success: true,

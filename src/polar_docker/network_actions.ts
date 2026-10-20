@@ -9,6 +9,7 @@ import type {Network} from '../typescript/index.js';
 import type {PolarNode} from '../typescript/index.js';
 import composeFile from './compose_file.js';
 import {nodePath} from './create_nodes.js';
+import type {DataFolder} from './data_folder.js';
 import type {DockerImplementation} from './docker_configs.js';
 import monitorStartup from './monitor_startup.js';
 import {saveNetwork} from './network_file.js';
@@ -25,17 +26,24 @@ const allNodes = (network: Network): PolarNode[] => {
 /** Save the docker compose file of a network
 
   {
+    folder: <Data Folder Object>
     network: <Network Object>
   }
 
   @returns via Promise
 */
-export const saveComposeFile = async ({network}: {network: Network}) => {
+export const saveComposeFile = async ({
+  folder,
+  network,
+}: {
+  folder: DataFolder;
+  network: Network;
+}) => {
   await mkdir(network.path, {recursive: true});
 
   await writeFile(
     join(network.path, 'docker-compose.yml'),
-    composeFile({network}).file,
+    composeFile({network, prefix: folder.prefix}).file,
   );
 };
 
@@ -46,7 +54,7 @@ export const saveComposeFile = async ({network}: {network: Network}) => {
   them
 
   {
-    dataDir: <Data Directory Path String>
+    folder: <Data Folder Object>
     network: <Network Object>
     nodes: [<Node to Start Object>]
   }
@@ -54,11 +62,11 @@ export const saveComposeFile = async ({network}: {network: Network}) => {
   @returns via Promise
 */
 export const prepareStart = async ({
-  dataDir,
+  folder,
   network,
   nodes,
 }: {
-  dataDir: string;
+  folder: DataFolder;
   network: Network;
   nodes: PolarNode[];
 }) => {
@@ -68,8 +76,8 @@ export const prepareStart = async ({
     .filter(n => !!ports?.[n.name])
     .forEach(n => (n.ports = {...n.ports, ...ports?.[n.name]}));
 
-  await saveNetwork({dataDir, network});
-  await saveComposeFile({network});
+  await saveNetwork({folder, network});
+  await saveComposeFile({folder, network});
 
   for (const node of nodes) {
     const implementation = node.implementation as DockerImplementation;
@@ -85,7 +93,7 @@ export const prepareStart = async ({
   The method saves each status change in the networks file
 
   {
-    dataDir: <Data Directory Path String>
+    folder: <Data Folder Object>
     network: <Network Object>
   }
 
@@ -95,22 +103,22 @@ export const prepareStart = async ({
   @returns via Promise
 */
 export const startNetwork = async ({
-  dataDir,
+  folder,
   network,
 }: {
-  dataDir: string;
+  folder: DataFolder;
   network: Network;
 }) => {
-  const save = () => saveNetwork({dataDir, network});
+  const save = () => saveNetwork({folder, network});
 
   setStatus({network, status: 'Starting'});
 
   await save();
 
   try {
-    await prepareStart({dataDir, network, nodes: allNodes(network)});
+    await prepareStart({folder, network, nodes: allNodes(network)});
 
-    await runCompose({args: ['up', '-d'], network});
+    await runCompose({args: ['up', '-d'], folder, network});
 
     setStatus({all: false, network, status: 'Started'});
 
@@ -134,7 +142,7 @@ export const startNetwork = async ({
   renamed nodes are removed too.
 
   {
-    dataDir: <Data Directory Path String>
+    folder: <Data Folder Object>
     network: <Network Object>
   }
 
@@ -144,13 +152,13 @@ export const startNetwork = async ({
   @returns via Promise
 */
 export const stopNetwork = async ({
-  dataDir,
+  folder,
   network,
 }: {
-  dataDir: string;
+  folder: DataFolder;
   network: Network;
 }) => {
-  const save = () => saveNetwork({dataDir, network});
+  const save = () => saveNetwork({folder, network});
 
   network.autoMineMode = 0;
 
@@ -159,7 +167,7 @@ export const stopNetwork = async ({
   await save();
 
   try {
-    await runCompose({args: ['down', '--remove-orphans'], network});
+    await runCompose({args: ['down', '--remove-orphans'], folder, network});
 
     setStatus({network, status: 'Stopped'});
 

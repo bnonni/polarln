@@ -8,13 +8,13 @@ import newNetwork from '../../src/polar_docker/new_network.js';
 import planNetwork from '../../src/polar_docker/plan_network.js';
 import type {Network} from '../../src/index.js';
 
-const makeNetwork = () => {
+const makeNetwork = (id = 2) => {
   const plan = planNetwork({});
 
   return newNetwork({
     dataDir: '/data',
     description: '',
-    id: 2,
+    id,
     name: 'n',
     plan,
   });
@@ -23,7 +23,7 @@ const makeNetwork = () => {
 const environment = {GROUPID: '${GROUPID:-1000}', USERID: '${USERID:-1000}'};
 
 test('The compose file has the Polar services with polarln names', () => {
-  const {file} = composeFile({network: makeNetwork()});
+  const {file} = composeFile({network: makeNetwork(), prefix: 'polarln'});
 
   const content = JSON.parse(file);
 
@@ -94,6 +94,34 @@ test('The compose file has the Polar services with polarln names', () => {
   );
 });
 
+test('The polar prefix gives the Polar app names', () => {
+  const {file} = composeFile({network: makeNetwork(5), prefix: 'polar'});
+
+  const content = JSON.parse(file);
+
+  const {alice, backend1} = content.services;
+
+  // These are the names in the docker-compose.yml of a Polar app network 5
+  deepStrictEqual(
+    [content.name, backend1.container_name, alice.container_name],
+    ['polar-network-5', 'polar-n5-backend1', 'polar-n5-alice'],
+    'Got the Polar project and container names',
+  );
+
+  deepStrictEqual(
+    alice.command
+      .split(' ')
+      .filter((n: string) => /tlsextradomain=polar|rpchost|zmqpub/.test(n)),
+    [
+      '--tlsextradomain=polar-n5-alice',
+      '--bitcoind.rpchost=polar-n5-backend1',
+      '--bitcoind.zmqpubrawblock=tcp://polar-n5-backend1:28334',
+      '--bitcoind.zmqpubrawtx=tcp://polar-n5-backend1:28335',
+    ],
+    'Got the Polar names in the LND command',
+  );
+});
+
 test('A custom image and command replace the defaults', () => {
   const network = makeNetwork();
 
@@ -102,7 +130,9 @@ test('A custom image and command replace the defaults', () => {
     image: 'my/lnd',
   };
 
-  const {alice} = JSON.parse(composeFile({network}).file).services;
+  const {alice} = JSON.parse(
+    composeFile({network, prefix: 'polarln'}).file,
+  ).services;
 
   deepStrictEqual(
     [alice.image, alice.command],
@@ -116,7 +146,7 @@ test('The compose file does not support other nodes yet', () => {
   network.nodes.tap.push({} as Network['nodes']['tap'][number]);
 
   throws(
-    () => composeFile({network}),
+    () => composeFile({network, prefix: 'polarln'}),
     new Error('polarDocker does not support tapd nodes yet'),
   );
 });

@@ -9,6 +9,7 @@ import type {LightningNode} from '../../typescript/index.js';
 import type {Network} from '../../typescript/index.js';
 import compareVersions from '../compare_versions.js';
 import {nodePath} from '../create_nodes.js';
+import type {DataFolder} from '../data_folder.js';
 import type {DockerImplementation} from '../docker_configs.js';
 import {repoState} from '../docker_configs.js';
 import {saveComposeFile} from '../network_actions.js';
@@ -21,13 +22,13 @@ import type {ToolArgs} from './types.js';
 import {validateNetworkId} from './validate.js';
 import {validateRequired} from './validate.js';
 
-type Remove<T> = {dataDir: string; network: Network; node: T};
+type Remove<T> = {folder: DataFolder; network: Network; node: T};
 
 const typeNames = {bitcoin: 'Bitcoin', lightning: 'Lightning'};
 
 // Remove a lightning node, and its container if the container can run
 const removeLightningNode = async (args: Remove<LightningNode>) => {
-  const {dataDir, network, node} = args;
+  const {folder, network, node} = args;
 
   if (network.nodes.tap.some(n => n.lndName === node.name)) {
     throw new Error(
@@ -50,16 +51,16 @@ const removeLightningNode = async (args: Remove<LightningNode>) => {
 
   // Polar removes the container only if the network is started
   if (network.status === 'Started' || node.status !== 'Stopped') {
-    await removeContainer({network, node});
+    await removeContainer({folder, network, node});
   }
 
-  await saveComposeFile({network});
-  await saveNetwork({dataDir, network});
+  await saveComposeFile({folder, network});
+  await saveNetwork({folder, network});
 };
 
 // Remove a bitcoin node, and restart a started network without the node
 const removeBitcoinNode = async (args: Remove<BitcoinNode>) => {
-  const {dataDir, network, node} = args;
+  const {folder, network, node} = args;
   const {bitcoin, lightning} = network.nodes;
 
   if (bitcoin.length === 1) {
@@ -103,31 +104,31 @@ const removeBitcoinNode = async (args: Remove<BitcoinNode>) => {
 
   if (network.status === 'Started') {
     // The compose file on disk still has the node, so the stop removes it
-    await stopNetwork({dataDir, network});
-    await startNetwork({dataDir, network});
+    await stopNetwork({folder, network});
+    await startNetwork({folder, network});
 
     return;
   }
 
   // A node that runs in a stopped network has a container
   if (node.status !== 'Stopped') {
-    await removeContainer({network, node});
+    await removeContainer({folder, network, node});
   }
 
-  await saveComposeFile({network});
-  await saveNetwork({dataDir, network});
+  await saveComposeFile({folder, network});
+  await saveNetwork({folder, network});
 };
 
 /** Remove a node and all of its data from a network
 
   If a bitcoin node is removed from a started network, the network restarts
 */
-export default async ({args, dataDir}: ToolArgs<RemoveNodeArgs>) => {
+export default async ({args, folder}: ToolArgs<RemoveNodeArgs>) => {
   validateNetworkId(args.networkId);
   validateRequired(args.nodeName, 'Node name');
 
   const network = await networkById({
-    dataDir,
+    folder,
     id: args.networkId,
     message: `Network with ID ${args.networkId} not found`,
   });
@@ -149,9 +150,9 @@ export default async ({args, dataDir}: ToolArgs<RemoveNodeArgs>) => {
   }
 
   if (node.type === 'bitcoin') {
-    await removeBitcoinNode({dataDir, network, node});
+    await removeBitcoinNode({folder, network, node});
   } else {
-    await removeLightningNode({dataDir, network, node});
+    await removeLightningNode({folder, network, node});
   }
 
   await rm(

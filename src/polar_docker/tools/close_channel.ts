@@ -13,12 +13,12 @@ import {validateRequired} from './validate.js';
   The tool rejects if lnd cannot close the channel. Polar does not wait for
   lnd, so Polar does not reject.
 */
-export default async ({args, dataDir}: ToolArgs<CloseChannelArgs>) => {
+export default async ({args, folder}: ToolArgs<CloseChannelArgs>) => {
   validateNetworkId(args.networkId);
   validateRequired(args.nodeName, 'Node name');
   validateRequired(args.channelPoint, 'Channel point');
 
-  const network = await networkById({dataDir, id: args.networkId});
+  const network = await networkById({folder, id: args.networkId});
 
   const node = findLndNode({network, nodeName: args.nodeName});
 

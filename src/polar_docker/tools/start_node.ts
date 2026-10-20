@@ -12,11 +12,11 @@ import {validateRequired} from './validate.js';
 
   Polar returns before the node is online, with the Starting status
 */
-export default async ({args, dataDir}: ToolArgs<StartNodeArgs>) => {
+export default async ({args, folder}: ToolArgs<StartNodeArgs>) => {
   validateNetworkId(args.networkId);
   validateRequired(args.nodeName, 'Node name');
 
-  const network = await networkById({dataDir, id: args.networkId});
+  const network = await networkById({folder, id: args.networkId});
 
   const node = findNode({network, nodeName: args.nodeName});
 
@@ -27,7 +27,7 @@ export default async ({args, dataDir}: ToolArgs<StartNodeArgs>) => {
     );
   }
 
-  await startNode({dataDir, network, node});
+  await startNode({folder, network, node});
 
   return {
     success: true,

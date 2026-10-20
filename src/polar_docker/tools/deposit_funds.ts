@@ -13,12 +13,12 @@ import {validateRequired} from './validate.js';
 
   The tool returns after the lightning node shows the coins as confirmed
 */
-export default async ({args, dataDir}: ToolArgs<DepositFundsArgs>) => {
+export default async ({args, folder}: ToolArgs<DepositFundsArgs>) => {
   validateNetworkId(args.networkId);
   validateRequired(args.nodeName, 'Node name');
   validatePositiveNumber(args.sats, 'Amount in sats');
 
-  const network = await networkById({dataDir, id: args.networkId});
+  const network = await networkById({folder, id: args.networkId});
 
   const node = findLndNode({network, nodeName: args.nodeName});
 

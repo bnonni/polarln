@@ -15,12 +15,12 @@ import {validateRequired} from './validate.js';
 
   If the network is started, the lightning node restarts with the new backend
 */
-export default async ({args, dataDir}: ToolArgs<SetLightningBackendArgs>) => {
+export default async ({args, folder}: ToolArgs<SetLightningBackendArgs>) => {
   validateNetworkId(args.networkId);
   validateRequired(args.lightningNodeName, 'Lightning node name');
   validateRequired(args.bitcoinNodeName, 'Bitcoin node name');
 
-  const network = await networkById({dataDir, id: args.networkId});
+  const network = await networkById({folder, id: args.networkId});
 
   const lnName = args.lightningNodeName as string;
   const backendName = args.bitcoinNodeName as string;
@@ -46,17 +46,17 @@ export default async ({args, dataDir}: ToolArgs<SetLightningBackendArgs>) => {
   const isStarted = network.status === 'Started';
 
   if (isStarted) {
-    await stopNode({dataDir, network, node});
+    await stopNode({folder, network, node});
   }
 
   node.backendName = backend.name;
 
-  await saveNetwork({dataDir, network});
-  await saveComposeFile({network});
+  await saveNetwork({folder, network});
+  await saveComposeFile({folder, network});
 
   // Polar waits for all of the nodes of the network, not only for this node
   if (isStarted) {
-    await startNode({dataDir, network, node});
+    await startNode({folder, network, node});
   }
 
   return {

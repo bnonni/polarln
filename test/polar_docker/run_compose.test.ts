@@ -1,3 +1,4 @@
+import {deepStrictEqual} from 'node:assert/strict';
 import {rejects} from 'node:assert/strict';
 import {strictEqual} from 'node:assert/strict';
 import {mkdtemp} from 'node:fs/promises';
@@ -6,9 +7,11 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import test from 'node:test';
 
+import dataFolder from '../../src/polar_docker/data_folder.js';
 import runCompose from '../../src/polar_docker/run_compose.js';
 import {composeError} from '../../src/polar_docker/run_compose.js';
 import type {Network} from '../../src/typescript/index.js';
+import {fakeDockerRunner} from '../fixtures/fake_docker_runner.js';
 
 const path = '/data/networks/1';
 
@@ -86,8 +89,62 @@ test('A missing network directory is not a Docker error', async () => {
 
   await rm(path, {recursive: true});
 
+  const folder = dataFolder({dataDir: '/data'});
+
   // The spawn fails before docker runs, so the test does not need Docker
-  await rejects(runCompose({args: ['ps'], network: {path} as Network}), {
-    message: `Network directory ${path} does not exist`,
+  await rejects(
+    runCompose({args: ['ps'], folder, network: {path} as Network}),
+    {
+      message: `Network directory ${path} does not exist`,
+    },
+  );
+});
+
+test('docker compose runs with the docker runner of the data folder', async () => {
+  const {calls, docker} = fakeDockerRunner({
+    respond: () => '\u001b[32mout\u001b[0m',
   });
+
+  const folder = dataFolder({dataDir: '/data', docker});
+
+  const {out} = await runCompose({
+    args: ['up', '-d'],
+    folder,
+    network: {path} as Network,
+  });
+
+  strictEqual(out, 'out', 'Got the output without colors');
+
+  deepStrictEqual(
+    calls,
+    [
+      {
+        args: ['compose', '-f', join(path, 'docker-compose.yml'), 'up', '-d'],
+        cwd: path,
+      },
+    ],
+    'The runner gets the compose file and the network directory',
+  );
+});
+
+test('A failed docker runner gives the compose error', async () => {
+  const err = {code: 1, message: 'Command failed', stderr: 'no such service\n'};
+
+  const {docker} = fakeDockerRunner({
+    respond: () => {
+      throw err;
+    },
+  });
+
+  const folder = dataFolder({dataDir: '/data', docker});
+
+  // The network directory exists, so the error is not a missing directory
+  await rejects(
+    runCompose({
+      args: ['stop', 'x'],
+      folder,
+      network: {path: tmpdir()} as Network,
+    }),
+    {message: 'no such service'},
+  );
 });

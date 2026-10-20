@@ -14,13 +14,13 @@ import {validateRequired} from './validate.js';
   By default, the opener gets 2x the capacity from the first bitcoin node
   first. The tool returns after the 2 nodes can use the channel for payments.
 */
-export default async ({args, dataDir}: ToolArgs<OpenChannelArgs>) => {
+export default async ({args, folder}: ToolArgs<OpenChannelArgs>) => {
   validateNetworkId(args.networkId);
   validateRequired(args.fromNode, 'From node name');
   validateRequired(args.toNode, 'To node name');
   validatePositiveNumber(args.sats, 'Channel capacity in sats');
 
-  const network = await networkById({dataDir, id: args.networkId});
+  const network = await networkById({folder, id: args.networkId});
 
   const from = findLndNode({network, nodeName: args.fromNode});
   const to = findLndNode({network, nodeName: args.toNode});
