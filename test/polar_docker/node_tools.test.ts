@@ -28,6 +28,7 @@ import type {LndNode} from '../../src/index.js';
 import type {Network} from '../../src/index.js';
 import type {PolarDocker} from '../../src/index.js';
 import makePolarDocker from '../../src/polar_docker/make_polar_docker.js';
+import {assertPolarLoadable} from '../fixtures/assert_polar_loadable.js';
 import {fakeDockerRunner} from '../fixtures/fake_docker_runner.js';
 import {rejection} from '../fixtures/rejection.js';
 
@@ -43,6 +44,16 @@ const withDataDir = async (use: (dataDir: string) => Promise<void>) => {
 
 const firstNetwork = async (polar: PolarDocker): Promise<Network> =>
   (await listNetworks({polar})).networks[0];
+
+const networksFile = (dataDir: string) =>
+  join(dataDir, 'networks', 'networks.json');
+
+// Get the Polar chart of the first network
+const firstChart = async (dataDir: string) => {
+  const file = JSON.parse(await readFile(networksFile(dataDir), 'utf8'));
+
+  return file.charts['1'];
+};
 
 const composeServices = async (network: Network) => {
   const file = await readFile(join(network.path, 'docker-compose.yml'), 'utf8');
@@ -100,6 +111,8 @@ test('Nodes can be added to a stopped network', () => {
       ['backend1', 'backend2', 'alice', 'bob', 'carol'],
       'The compose file has the new nodes',
     );
+
+    await assertPolarLoadable(networksFile(dataDir));
   });
 });
 
@@ -161,6 +174,19 @@ test('Nodes can be removed from a stopped network', () => {
       'The compose file does not have the removed nodes',
     );
 
+    const chart = await firstChart(dataDir);
+
+    deepStrictEqual(
+      [Object.keys(chart.nodes), Object.keys(chart.links)],
+      [
+        ['backend1', 'backend3', 'alice'],
+        ['alice-backend1', 'backend1-backend3'],
+      ],
+      'The chart does not have the removed nodes, and has the new peer link',
+    );
+
+    await assertPolarLoadable(networksFile(dataDir));
+
     await removeNode({networkId: 1, nodeName: 'backend1', polar});
 
     deepStrictEqual(
@@ -182,6 +208,19 @@ test('Nodes can be renamed in a stopped network', () => {
 
     await mkdir(dirname(alice.paths.tlsCert), {recursive: true});
     await writeFile(alice.paths.tlsCert, 'cert');
+
+    // The user moved alice, and alice has a channel to bob
+    const file = JSON.parse(await readFile(networksFile(dataDir), 'utf8'));
+
+    file.charts['1'].nodes.alice.position = {x: 7, y: 8};
+    file.charts['1'].links.chan = {
+      id: 'chan',
+      from: {nodeId: 'alice', portId: 'chan'},
+      to: {nodeId: 'bob', portId: 'chan'},
+      properties: {type: 'open-channel'},
+    };
+
+    await writeFile(networksFile(dataDir), JSON.stringify(file, null, 2));
 
     const renamed = await renameNode({
       networkId: 1,
@@ -225,6 +264,25 @@ test('Nodes can be renamed in a stopped network', () => {
       ['chain', 'zed', 'bob'],
       'The compose file has the new names',
     );
+
+    const chart = await firstChart(dataDir);
+
+    deepStrictEqual(
+      [chart.nodes.zed.position, Object.keys(chart.links), chart.links.chan],
+      [
+        {x: 7, y: 8},
+        ['zed-chain', 'bob-chain', 'chan'],
+        {
+          id: 'chan',
+          from: {nodeId: 'zed', portId: 'chan'},
+          to: {nodeId: 'bob', portId: 'chan'},
+          properties: {type: 'open-channel'},
+        },
+      ],
+      'The chart node keeps its position, and the links get the new names',
+    );
+
+    await assertPolarLoadable(networksFile(dataDir));
   });
 });
 
@@ -308,6 +366,14 @@ test('Node commands and backends can be changed in a stopped network', () => {
       true,
       'The compose file has the new backend',
     );
+
+    deepStrictEqual(
+      Object.keys((await firstChart(dataDir)).links),
+      ['backend1-backend2', 'alice-backend2'],
+      'The chart link goes to the new backend',
+    );
+
+    await assertPolarLoadable(networksFile(dataDir));
   });
 });
 

@@ -17,6 +17,8 @@ import {renameNetwork} from '../../src/index.js';
 import {startNetwork} from '../../src/index.js';
 import {stopNetwork} from '../../src/index.js';
 import makePolarDocker from '../../src/polar_docker/make_polar_docker.js';
+import {initChartFromNetwork} from '../../src/polar_docker/polar_chart.js';
+import {assertPolarLoadable} from '../fixtures/assert_polar_loadable.js';
 import {fakeDockerRunner} from '../fixtures/fake_docker_runner.js';
 import {rejection} from '../fixtures/rejection.js';
 
@@ -54,9 +56,8 @@ test('A stopped network can be created, listed, renamed, and deleted', () => {
       'Got compose file',
     );
 
-    const file = JSON.parse(
-      await readFile(join(dataDir, 'networks', 'networks.json'), 'utf8'),
-    );
+    const networksFile = join(dataDir, 'networks', 'networks.json');
+    const file = JSON.parse(await readFile(networksFile, 'utf8'));
 
     // The file has the Polar status numbers, and the results have the labels
     const stored = JSON.parse(
@@ -68,9 +69,15 @@ test('A stopped network can be created, listed, renamed, and deleted', () => {
 
     deepStrictEqual(
       file,
-      {charts: {}, networks: [stored], version: '4.0.0'},
-      'Got file',
+      {
+        charts: {1: initChartFromNetwork({network: created.network})},
+        networks: [stored],
+        version: '4.0.0',
+      },
+      'Got file with the Polar chart of the network',
     );
+
+    await assertPolarLoadable(networksFile);
 
     const renamed = await renameNetwork({name: 'two', networkId: 1, polar});
 
@@ -99,6 +106,14 @@ test('A stopped network can be created, listed, renamed, and deleted', () => {
       [2],
       'Got the other network',
     );
+
+    deepStrictEqual(
+      Object.keys(JSON.parse(await readFile(networksFile, 'utf8')).charts),
+      ['2'],
+      'The chart of the deleted network is gone',
+    );
+
+    await assertPolarLoadable(networksFile);
   });
 });
 

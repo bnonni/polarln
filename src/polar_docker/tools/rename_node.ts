@@ -1,6 +1,7 @@
 // Ported from jamaljsr/polar (MIT): src/store/models/mcp/network/renameNode.ts,
 // src/store/models/network.ts (renameNode), src/utils/network.ts (renameNode),
-// src/lib/docker/dockerService.ts (renameNodeDir).
+// src/lib/docker/dockerService.ts (renameNodeDir),
+// src/store/models/designer.ts (renameNode).
 
 import {existsSync} from 'node:fs';
 import {rename} from 'node:fs/promises';
@@ -15,8 +16,9 @@ import type {DockerImplementation} from '../docker_configs.js';
 import {saveComposeFile} from '../network_actions.js';
 import {startNetwork} from '../network_actions.js';
 import {stopNetwork} from '../network_actions.js';
+import {changeNetworks} from '../network_file.js';
 import {networkById} from '../network_file.js';
-import {saveNetwork} from '../network_file.js';
+import {renameChartNode} from '../polar_chart.js';
 import type {ToolArgs} from './types.js';
 import {validateNetworkId} from './validate.js';
 import {validateRequired} from './validate.js';
@@ -117,6 +119,7 @@ export default async ({args, folder}: ToolArgs<RenameNodeArgs>) => {
     throw new Error('polarDocker does not support tapd nodes yet');
   }
 
+  const oldName = node.name;
   const wasStarted = node.status === 'Started';
 
   if (wasStarted) {
@@ -127,7 +130,21 @@ export default async ({args, folder}: ToolArgs<RenameNodeArgs>) => {
 
   renameInNetwork(network, node, newName);
 
-  await saveNetwork({folder, network});
+  await changeNetworks({
+    change: (networks, charts) => {
+      const index = networks.findIndex(n => n.id === network.id);
+
+      if (index === -1) {
+        return;
+      }
+
+      networks[index] = network;
+
+      // The chart node keeps its position, as in Polar
+      renameChartNode({charts, id: network.id, name: newName, nodeId: oldName});
+    },
+    folder,
+  });
   await saveComposeFile({folder, network});
 
   if (wasStarted) {

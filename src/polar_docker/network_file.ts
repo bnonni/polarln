@@ -1,5 +1,6 @@
 // Ported from jamaljsr/polar (MIT): src/lib/docker/dockerService.ts
-// (saveNetworks, loadNetworks).
+// (saveNetworks, loadNetworks), src/store/models/network.ts (addNetwork,
+// remove).
 
 import {readdir} from 'node:fs/promises';
 import {readFile} from 'node:fs/promises';
@@ -9,6 +10,9 @@ import type {Network} from '../typescript/index.js';
 import type {PolarError} from '../typescript/index.js';
 import type {DataFolder} from './data_folder.js';
 import lockNetworksFile from './lock_networks_file.js';
+import {chartIcons} from './polar_chart.js';
+import type {PolarCharts} from './polar_chart.js';
+import syncChart from './polar_chart.js';
 import {statusCode} from './status_codes.js';
 import {statusLabel} from './status_codes.js';
 import writeFileAtomic from './write_file_atomic.js';
@@ -22,9 +26,13 @@ const lastChanges = new Map<string, Promise<unknown>>();
 /** Polar Networks File (the keys that polarDocker does not know stay) */
 type NetworksFile = {
   [key: string]: unknown;
+  charts?: unknown;
   networks: Network[];
   version?: unknown;
 };
+
+/** Change the Networks Array and the Charts of the Networks File */
+type ChangeNetworks = (networks: Network[], charts: PolarCharts) => void;
 
 // An object with a status number on disk and a status label in memory
 type StatusHolder = {status?: unknown};
@@ -191,11 +199,44 @@ export const readNetworks = async ({folder}: {folder: DataFolder}) => {
   return {networks: file?.networks || []};
 };
 
+// Sync the chart of each new or changed network, as the Polar app needs a
+// chart node for each node. Remove the chart of each removed network.
+const syncCharts = (args: {
+  before: Map<number, string>;
+  charts: PolarCharts;
+  networks: Network[];
+}) => {
+  const icons = chartIcons({charts: args.charts, networks: args.networks});
+  const ids = new Set(args.networks.map(n => n.id));
+
+  args.before.forEach((_, id) => {
+    if (!ids.has(id)) {
+      delete args.charts[id];
+    }
+  });
+
+  args.networks.forEach(network => {
+    const before = args.before.get(network.id);
+
+    if (before === JSON.stringify(network)) {
+      return;
+    }
+
+    // A new network gets a new chart, as in Polar addNetwork
+    if (before === undefined) {
+      delete args.charts[network.id];
+    }
+
+    args.charts[network.id] = syncChart({
+      chart: args.charts[network.id],
+      icons,
+      network,
+    });
+  });
+};
+
 // Read the file, change the networks, and write the file, with the lock held
-const writeChange = (args: {
-  change: (networks: Network[]) => void;
-  folder: DataFolder;
-}) =>
+const writeChange = (args: {change: ChangeNetworks; folder: DataFolder}) =>
   lockNetworksFile({
     dataDir: args.folder.dataDir,
     use: async () => {
@@ -211,15 +252,25 @@ const writeChange = (args: {
         );
       }
 
-      args.change(file.networks);
+      // The Polar app needs the charts key
+      file.charts ??= {};
+
+      if (!isObject(file.charts)) {
+        throw notReadable({err: 'The charts key is not an object', path});
+      }
+
+      const {charts} = file;
+      const before = new Map(file.networks.map(n => [n.id, JSON.stringify(n)]));
+
+      args.change(file.networks, charts);
+
+      const networks = file.networks.map(encodeNetwork);
+
+      syncCharts({before, charts, networks: file.networks});
 
       // The spread keeps the key order and the keys that polarDocker does not
       // know
-      const json = JSON.stringify(
-        {...file, networks: file.networks.map(encodeNetwork)},
-        null,
-        2,
-      );
+      const json = JSON.stringify({...file, networks}, null, 2);
 
       // The lock made the networks folder. Polar writes the file with no
       // end newline.
@@ -238,12 +289,17 @@ const writeChange = (args: {
   replaces the old file in one step.
 
   The file has the Polar v4.0.0 format: the status labels become numbers, and
-  the version, the charts, the key order, and the unknown keys stay. A file
-  with a different version, or with a status that is not a Polar status, does
-  not change. A file that is not valid JSON does not change.
+  the version, the key order, and the unknown keys stay. A file with a
+  different version, or with a status that is not a Polar status, does not
+  change. A file that is not valid JSON does not change.
+
+  The change gets the charts of the file, with the network id as the key.
+  After the change, the chart of each new or changed network matches the
+  network, and the chart of each removed network goes away. The charts of the
+  other networks stay the same.
 
   {
-    change: <Change the Networks Array Function>
+    change: <Change the Networks Array and the Charts Function>
     folder: <Data Folder Object>
   }
 
@@ -258,7 +314,7 @@ const writeChange = (args: {
   }
 */
 export const changeNetworks = (args: {
-  change: (networks: Network[]) => void;
+  change: ChangeNetworks;
   folder: DataFolder;
 }) => {
   const {dataDir} = args.folder;
