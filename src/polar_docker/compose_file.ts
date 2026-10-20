@@ -7,7 +7,9 @@ import type {Network} from '../typescript/index.js';
 import type {ContainerPrefix} from './data_folder.js';
 import {bitcoinCredentials} from './docker_configs.js';
 import {dockerConfigs} from './docker_configs.js';
+import {volumeDirNames} from './docker_configs.js';
 import {containerName} from './node_names.js';
+import {projectName} from './node_names.js';
 
 type Service = {
   command: string;
@@ -39,7 +41,8 @@ const service = (svc: Service) => ({
 
 const bitcoind = (node: BitcoinNode, prefix: ContainerPrefix) => {
   const {name, ports} = node;
-  const {imageName, volumeDirName} = dockerConfigs.bitcoind;
+  const {imageName} = dockerConfigs.bitcoind;
+  const volumeDirName = volumeDirNames.bitcoind;
 
   const command = mergeCommand(
     node.docker.command || dockerConfigs.bitcoind.command,
@@ -68,7 +71,8 @@ const bitcoind = (node: BitcoinNode, prefix: ContainerPrefix) => {
 
 const lnd = (node: LndNode, backend: BitcoinNode, prefix: ContainerPrefix) => {
   const {name, ports} = node;
-  const {imageName, volumeDirName} = dockerConfigs.LND;
+  const {imageName} = dockerConfigs.LND;
+  const volumeDirName = volumeDirNames.LND;
 
   const command = mergeCommand(
     node.docker.command || dockerConfigs.LND.command,
@@ -141,7 +145,7 @@ export default ({
     throw new Error('polarDocker does not support tapd nodes yet');
   }
 
-  const content = {name: `${prefix}-network-${network.id}`, services};
+  const content = {name: projectName(network, prefix), services};
 
   return {file: `${JSON.stringify(content, null, 2)}\n`};
 };

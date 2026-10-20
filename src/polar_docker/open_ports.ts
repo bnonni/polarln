@@ -1,4 +1,5 @@
-// Ported from jamaljsr/polar (MIT): src/utils/network.ts (getOpenPorts).
+// Ported from jamaljsr/polar (MIT): src/utils/network.ts (getOpenPorts,
+// getOpenPortRange).
 
 import {createServer} from 'node:net';
 
@@ -8,7 +9,6 @@ import type {PolarNode} from '../typescript/index.js';
 /** New Host Ports for Each Node Name */
 export type OpenPorts = {[name: string]: {[port: string]: number}};
 
-const isRunning = (n: PolarNode) => n.status === 'Started';
 const maxPort = 65535;
 
 // Docker publishes a port on all IPv4 and IPv6 addresses
@@ -62,9 +62,13 @@ export const openPortRange = async (ports: number[]): Promise<number[]> => {
 
 /** Get new host ports for the nodes with ports that are not free
 
-  The nodes that run hold their own ports, so they keep their ports
+  The check covers each port in node.ports of each node kind. The nodes of
+  one kind get ports in node order, as in Polar. A node that runs holds its
+  own ports, so its ports stay. By default, a node runs if it has the Started
+  status, as in Polar.
 
   {
+    [isRunning]: <Node Runs and Holds Its Ports Function>
     network: <Network Object>
   }
 
@@ -72,37 +76,54 @@ export const openPortRange = async (ports: number[]): Promise<number[]> => {
   [<New Ports For Each Node Name Object>]
 */
 export default async ({
+  isRunning = n => n.status === 'Started',
   network,
 }: {
+  isRunning?: (node: PolarNode) => boolean;
   network: Network;
 }): Promise<OpenPorts | undefined> => {
   const ports: OpenPorts = {};
 
-  const check = async (nodes: PolarNode[], keys: string[]) => {
-    for (const key of keys) {
-      const existing = nodes.map(
-        n => (n.ports as {[port: string]: number})[key],
-      );
+  const portsOf = (node: PolarNode) =>
+    node.ports as {[port: string]: number | undefined};
 
-      const open = await openPortRange(existing);
+  const check = async (nodes: PolarNode[], key: string) => {
+    const existing = nodes.map(n => portsOf(n)[key] as number);
 
-      if (open.join() === existing.join()) {
-        continue;
-      }
+    const open = await openPortRange(existing);
 
-      open.forEach((port, i) => {
-        ports[nodes[i].name] = {...ports[nodes[i].name], [key]: port};
-      });
+    if (open.join() === existing.join()) {
+      return;
     }
+
+    open.forEach((port, i) => {
+      ports[nodes[i].name] = {...ports[nodes[i].name], [key]: port};
+    });
   };
 
-  const bitcoin = network.nodes.bitcoin.filter(n => !isRunning(n));
-  const lnd = network.nodes.lightning.filter(n => {
-    return n.implementation === 'LND' && !isRunning(n);
-  });
+  const {bitcoin, lightning, tap} = network.nodes;
 
-  await check(bitcoin, ['rpc', 'p2p', 'zmqBlock', 'zmqTx']);
-  await check(lnd, ['grpc', 'rest', 'p2p']);
+  // Group the nodes that do not run by kind, in node order
+  const groups = new Map<string, PolarNode[]>();
+
+  [...bitcoin, ...lightning, ...tap]
+    .filter(n => !isRunning(n))
+    .forEach(n => {
+      groups.set(n.implementation, [
+        ...(groups.get(n.implementation) || []),
+        n,
+      ]);
+    });
+
+  for (const nodes of groups.values()) {
+    const keys = new Set(nodes.flatMap(n => Object.keys(n.ports)));
+
+    for (const key of keys) {
+      const withPort = nodes.filter(n => typeof portsOf(n)[key] === 'number');
+
+      await check(withPort, key);
+    }
+  }
 
   return !!Object.keys(ports).length ? ports : undefined;
 };

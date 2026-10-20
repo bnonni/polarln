@@ -3,12 +3,15 @@
 
 import type {Network} from '../typescript/index.js';
 import type {PolarNode} from '../typescript/index.js';
+import asError from './as_error.js';
 import assertNetworkPath from './assert_network_path.js';
 import type {DataFolder} from './data_folder.js';
 import type {ActionSteps} from './network_actions.js';
 import {actionSteps} from './network_actions.js';
+import {planStart} from './network_actions.js';
 import {prepareStart} from './network_actions.js';
 import {assertNetworksFileWritable} from './network_file.js';
+import projectContainers from './project_containers.js';
 import runCompose from './run_compose.js';
 import setStatus from './set_status.js';
 
@@ -22,15 +25,12 @@ type Args = {
   steps?: ActionSteps;
 };
 
-const asError = (err: unknown) =>
-  err instanceof Error ? err : new Error(String(err));
-
 /** Start the container of one node and wait for the node
 
   The networks file gets only the final statuses, as in a network start. The
   method saves a maximum of 3 times: the moved ports, the Started status
-  after the container starts, and the result of the wait. A failure saves the
-  Error status. The network status does not change.
+  after the container starts, and the result of the wait. A failure after
+  the checks saves the Error status. The network status does not change.
 
   {
     folder: <Data Folder Object>
@@ -40,7 +40,10 @@ const asError = (err: unknown) =>
   }
 
   @throws
+  [409, 'ComposeFileHasOtherServices', {networkId, path, services}]
+  [409, 'ContainerNameInUse', {container, project, workingDir}]
   [409, 'NetworkPathOutsideDataFolder', {expected, networkId, path}]
+  [409, 'PolarPortInUse', {node, port}]
   <Error>
 
   @returns via Promise
@@ -59,8 +62,10 @@ export const startNode = async ({
   // A copy of a data folder must not start the containers of the original
   assertNetworkPath({folder, network});
 
+  const plan = await planStart({folder, network, nodes: [node]});
+
   try {
-    await prepareStart({folder, network, nodes: [node], steps});
+    await prepareStart({folder, network, plan, steps});
 
     // The Starting status stays in memory, as in the Polar app
     setStatus({network, only: node.name, status: 'Starting'});
@@ -73,7 +78,7 @@ export const startNode = async ({
 
     await save();
 
-    await steps.monitor({network, nodes: [node]});
+    await steps.monitor({folder, network, nodes: [node]});
   } catch (err) {
     setStatus({error: asError(err), network, only: node.name, status: 'Error'});
 
@@ -88,8 +93,8 @@ export const startNode = async ({
 /** Stop the container of one node
 
   The networks file gets only the final status. After the container stops,
-  the method saves the Stopped status. A failure saves the Error status. The
-  network status does not change.
+  the method saves the Stopped status. A failure after the checks saves the
+  Error status. The network status does not change.
 
   {
     folder: <Data Folder Object>
@@ -99,6 +104,7 @@ export const startNode = async ({
   }
 
   @throws
+  [409, 'ContainerNameInUse', {container, project, workingDir}]
   [409, 'NetworkPathOutsideDataFolder', {expected, networkId, path}]
   <Error>
 
@@ -117,6 +123,8 @@ export const stopNode = async ({
 
   // A copy of a data folder must not stop the containers of the original
   assertNetworkPath({folder, network});
+
+  await projectContainers({folder, network});
 
   // The Stopping status stays in memory, as in the Polar app
   setStatus({network, only: node.name, status: 'Stopping'});
@@ -147,6 +155,7 @@ export const stopNode = async ({
   }
 
   @throws
+  [409, 'ContainerNameInUse', {container, project, workingDir}]
   [409, 'NetworkPathOutsideDataFolder', {expected, networkId, path}]
   <Error>
 
@@ -154,6 +163,8 @@ export const stopNode = async ({
 */
 export const removeContainer = async ({folder, network, node}: Args) => {
   assertNetworkPath({folder, network});
+
+  await projectContainers({folder, network});
 
   await runCompose({args: ['stop', node.name], folder, network});
   await runCompose({args: ['rm', '-f', node.name], folder, network});

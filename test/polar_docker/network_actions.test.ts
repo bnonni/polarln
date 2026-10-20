@@ -17,6 +17,7 @@ import type {DockerRunner} from '../../src/polar_docker/data_folder.js';
 import executeTool from '../../src/polar_docker/execute_tool.js';
 import makePolarDocker from '../../src/polar_docker/make_polar_docker.js';
 import type {ActionSteps} from '../../src/polar_docker/network_actions.js';
+import {saveComposeFile} from '../../src/polar_docker/network_actions.js';
 import {startNetwork} from '../../src/polar_docker/network_actions.js';
 import {stopNetwork} from '../../src/polar_docker/network_actions.js';
 import {networkById} from '../../src/polar_docker/network_file.js';
@@ -27,6 +28,7 @@ import setStatus from '../../src/polar_docker/set_status.js';
 import {assertPolarLoadable} from '../fixtures/assert_polar_loadable.js';
 import {fakeDockerRunner} from '../fixtures/fake_docker_runner.js';
 import {rejection} from '../fixtures/rejection.js';
+import {spyOnSync} from '../fixtures/sync_spy.js';
 
 /** docker compose Command and the Statuses in the File at That Time */
 type ComposeCall = {command: string; statuses: unknown[]};
@@ -63,9 +65,14 @@ const withDataDir = async (use: (setup: Setup) => Promise<void>) => {
 
   const {docker} = fakeDockerRunner({
     respond: ({args, cwd}) => {
-      const command = args[3];
+      const command = args[0] === 'compose' ? args[3] : args[0];
 
       calls.push({command, statuses: diskStatuses(file)});
+
+      // The container check runs in no directory, and finds no containers
+      if (command === 'ps') {
+        return '';
+      }
 
       if (!existsSync(cwd as string)) {
         throw {code: 'ENOENT', message: 'spawn docker ENOENT'};
@@ -185,7 +192,13 @@ test('A start saves the moved ports, then Started, then the results', () => {
 
       deepStrictEqual(
         [setup.calls, monitorSaw],
-        [[{command: 'up', statuses: [3, 3, 3, 3]}], [[1, 1, 1, 1]]],
+        [
+          [
+            {command: 'ps', statuses: [3, 3, 3, 3]},
+            {command: 'up', statuses: [3, 3, 3, 3]},
+          ],
+          [[1, 1, 1, 1]],
+        ],
         'The file has the moved ports before the containers start',
       );
 
@@ -214,7 +227,13 @@ test('A failed start saves Error, and never Starting', () => {
 
     deepStrictEqual(
       [writes, setup.calls],
-      [[[4, 4, 4, 4]], [{command: 'up', statuses: [3, 3, 3, 3]}]],
+      [
+        [[4, 4, 4, 4]],
+        [
+          {command: 'ps', statuses: [3, 3, 3, 3]},
+          {command: 'up', statuses: [3, 3, 3, 3]},
+        ],
+      ],
       'Got one write with the Error status',
     );
   });
@@ -236,7 +255,13 @@ test('A stop saves Stopped and no automatic mine after the stop', () => {
 
     deepStrictEqual(
       [writes, setup.calls],
-      [[[3, 3, 3, 3]], [{command: 'down', statuses: [1, 1, 1, 1]}]],
+      [
+        [[3, 3, 3, 3]],
+        [
+          {command: 'ps', statuses: [1, 1, 1, 1]},
+          {command: 'down', statuses: [1, 1, 1, 1]},
+        ],
+      ],
       'Got one write with the Stopped status after the stop',
     );
 
@@ -297,15 +322,61 @@ test('A node start and a node stop save only final statuses', () => {
       [setup.calls, monitorSaw],
       [
         [
+          {command: 'ps', statuses: [3, 3, 3, 3]},
           {command: 'stop', statuses: [3, 3, 3, 3]},
           {command: 'up', statuses: [3, 3, 3, 3]},
+          {command: 'ps', statuses: [3, 3, 1, 3]},
           {command: 'stop', statuses: [3, 3, 1, 3]},
+          {command: 'ps', statuses: [3, 3, 3, 3]},
           {command: 'stop', statuses: [3, 3, 3, 3]},
           {command: 'up', statuses: [3, 3, 3, 3]},
         ],
         [[3, 3, 1, 3]],
       ],
       'The file has no Starting or Stopping status at a docker command',
+    );
+  });
+});
+
+test('A failed node save gives the PolarError text as the node error', () => {
+  return withDataDir(async setup => {
+    const {folder, network} = await makeNetwork(setup);
+    const [alice] = network.nodes.lightning;
+    const busy = [409, 'NetworksFileBusy', {dataDir: setup.dataDir}];
+    let saves = 0;
+
+    // The save of the Started status fails, as a busy lock does
+    const steps: ActionSteps = {
+      monitor: async () => {
+        throw new Error('UnexpectedMonitorCall');
+      },
+      save: async save => {
+        saves += 1;
+
+        if (saves === 1) {
+          throw busy;
+        }
+
+        await saveNetwork(save);
+      },
+    };
+
+    deepStrictEqual(
+      await rejection(startNode({folder, network, node: alice, steps})),
+      busy,
+      'The start rejects with the PolarError',
+    );
+
+    const saved = (await networkById({folder, id: 1})).nodes.lightning[0];
+
+    deepStrictEqual(
+      [saves, saved.status, saved.errorMsg],
+      [
+        2,
+        'Error',
+        `NetworksFileBusy: ${JSON.stringify({dataDir: setup.dataDir})}`,
+      ],
+      'The file has the message and the details, not [object Object]',
     );
   });
 });
@@ -327,7 +398,8 @@ test('Failed tools leave Error, and never Starting or Stopping', () => {
 
     equal(existsSync(network.path), true, 'The network directory exists');
 
-    // A network directory that is not there makes the docker command fail
+    // A network directory that is not there makes the stop fail before the
+    // docker compose command
     await rm(network.path, {force: true, recursive: true});
 
     const [, , details] = (await rejection(
@@ -338,8 +410,9 @@ test('Failed tools leave Error, and never Starting or Stopping', () => {
       [setup.calls, details.err],
       [
         [
+          {command: 'ps', statuses: [3, 3, 3, 3]},
           {command: 'up', statuses: [3, 3, 3, 3]},
-          {command: 'down', statuses: [4, 4, 4, 4]},
+          {command: 'ps', statuses: [4, 4, 4, 4]},
         ],
         `Network directory ${network.path} does not exist`,
       ],
@@ -405,5 +478,41 @@ test('A start or a stop of a file that cannot be written runs no docker', () => 
     deepStrictEqual(setup.calls, [], 'No docker command ran');
 
     equal(await readFile(setup.file, 'utf8'), before, 'The file is the same');
+  });
+});
+
+test('A compose file write syncs the new file before the rename', () => {
+  return withDataDir(async setup => {
+    const {folder, network} = await makeNetwork(setup);
+    const path = join(network.path, 'docker-compose.yml');
+    const before = await readFile(path, 'utf8');
+
+    // A network with no bob node gets a different compose file
+    network.nodes.lightning = network.nodes.lightning.filter(
+      n => n.name !== 'bob',
+    );
+
+    // At each sync, get the text of the compose file
+    const texts: string[] = [];
+
+    const restore = await spyOnSync(() => {
+      texts.push(readFileSync(path, 'utf8'));
+    });
+
+    try {
+      await saveComposeFile({folder, network});
+    } finally {
+      restore();
+    }
+
+    const after = await readFile(path, 'utf8');
+
+    equal(after.includes('bob'), false, 'The new file has no bob node');
+
+    deepStrictEqual(
+      texts,
+      [before, after],
+      'The new file syncs before the rename, and the folder after it',
+    );
   });
 });

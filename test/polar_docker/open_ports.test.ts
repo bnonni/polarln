@@ -4,6 +4,7 @@ import type {Server} from 'node:net';
 import test from 'node:test';
 
 import type {LndNode} from '../../src/index.js';
+import type {TapdNode} from '../../src/index.js';
 
 import newNetwork from '../../src/polar_docker/new_network.js';
 import openPorts from '../../src/polar_docker/open_ports.js';
@@ -73,4 +74,60 @@ test('Only the nodes that do not run get new ports', async () => {
   network.nodes.lightning = [];
 
   deepStrictEqual(await openPorts({network}), undefined, 'No change');
+});
+
+test('The check covers each port of each node kind', async () => {
+  const held = await holdPort();
+
+  const network = newNetwork({
+    dataDir: '/data',
+    description: '',
+    id: 1,
+    name: 'n',
+    plan: planNetwork({}),
+  });
+
+  const {bitcoin, lightning} = network.nodes;
+
+  [...bitcoin, ...lightning].forEach(node => {
+    const ports = node.ports as {[port: string]: number};
+
+    Object.keys(ports).forEach(port => (ports[port] = 0));
+  });
+
+  const tapd: TapdNode = {
+    id: 0,
+    networkId: 1,
+    name: 'alice-tap',
+    type: 'tap',
+    implementation: 'tapd',
+    version: '0.7.0-alpha',
+    status: 'Stopped',
+    lndName: 'alice',
+    paths: {adminMacaroon: '', tlsCert: ''},
+    ports: {grpc: 0, rest: held.port},
+    docker: {command: '', image: ''},
+  };
+
+  network.nodes.tap.push(tapd);
+
+  try {
+    const ports = await openPorts({network});
+
+    deepStrictEqual(
+      [Object.keys(ports || {}), Object.keys(ports?.['alice-tap'] || {})],
+      [['alice-tap'], ['rest']],
+      'The tapd rest port moves',
+    );
+
+    // The container of the node runs, so the node holds its own port
+    const running = await openPorts({
+      isRunning: node => node.name === 'alice-tap',
+      network,
+    });
+
+    deepStrictEqual(running, undefined, 'A node that runs keeps its ports');
+  } finally {
+    await held.close();
+  }
 });

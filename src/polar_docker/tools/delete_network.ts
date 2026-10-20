@@ -8,12 +8,16 @@ import assertNetworkPath from '../assert_network_path.js';
 import {stopNetwork} from '../network_actions.js';
 import {changeNetworks} from '../network_file.js';
 import {networkById} from '../network_file.js';
+import projectContainers from '../project_containers.js';
+import {isUp} from '../project_containers.js';
 import type {ToolArgs} from './types.js';
 import {validateNetworkId} from './validate.js';
 
 /** Delete a network and all of its data (this cannot be undone)
 
-  The result shows the network as it was before the delete
+  The network stops first if a status is not Stopped, or if a container of
+  the network runs. Polar does not look at the tap node statuses or at the
+  containers. The result shows the network as it was before the delete.
 */
 export default async ({args, folder}: ToolArgs<DeleteNetworkArgs>) => {
   validateNetworkId(args.networkId);
@@ -25,13 +29,18 @@ export default async ({args, folder}: ToolArgs<DeleteNetworkArgs>) => {
 
   const before = structuredClone(network);
 
+  const {containers} = await projectContainers({folder, network});
+
   const statuses = [
     network.status,
     ...network.nodes.lightning.map(n => n.status),
     ...network.nodes.bitcoin.map(n => n.status),
+    ...network.nodes.tap.map(n => n.status),
   ];
 
-  if (statuses.some(status => status !== 'Stopped')) {
+  const runs = containers.some(c => isUp(c.state));
+
+  if (runs || statuses.some(status => status !== 'Stopped')) {
     await stopNetwork({folder, network});
   }
 

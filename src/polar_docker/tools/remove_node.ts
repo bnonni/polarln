@@ -114,6 +114,9 @@ const removeBitcoinNode = async (args: Remove<BitcoinNode>) => {
   if (network.status === 'Started') {
     // The compose file on disk still has the node, so the stop removes it
     await stopNetwork({folder, network});
+
+    // The start uses the compose file of the network
+    await saveComposeFile({folder, network});
     await startNetwork({folder, network});
 
     return;
@@ -167,11 +170,7 @@ export default async ({args, folder}: ToolArgs<RemoveNodeArgs>) => {
     throw new Error('polarDocker does not support tapd nodes yet');
   }
 
-  const dir = nodePath(
-    network,
-    node.implementation as DockerImplementation,
-    node.name,
-  );
+  const dir = nodePath(network, node.implementation, node.name);
 
   // A copy of a data folder must not change the folders of the original
   assertNetworkPath({folder, network, paths: [dir]});

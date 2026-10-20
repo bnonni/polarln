@@ -5,11 +5,11 @@ import {join} from 'node:path';
 import type {BitcoinNode} from '../typescript/index.js';
 import type {LndNode} from '../typescript/index.js';
 import type {Network} from '../typescript/index.js';
+import type {NodeImplementation} from '../typescript/index.js';
 import compareVersions from './compare_versions.js';
 import {basePorts} from './docker_configs.js';
-import {dockerConfigs} from './docker_configs.js';
-import type {DockerImplementation} from './docker_configs.js';
 import {repoState} from './docker_configs.js';
+import {volumeDirNames} from './docker_configs.js';
 import {lightningName} from './node_names.js';
 
 const docker = () => ({command: '', image: ''});
@@ -19,15 +19,9 @@ const nextId = (nodes: {id: number}[]) =>
 /** Get the host path of the data directory of a node */
 export const nodePath = (
   network: Network,
-  implementation: DockerImplementation,
+  implementation: NodeImplementation,
   name: string,
-) =>
-  join(
-    network.path,
-    'volumes',
-    dockerConfigs[implementation].volumeDirName,
-    name,
-  );
+) => join(network.path, 'volumes', volumeDirNames[implementation], name);
 
 /** Get the host paths of the TLS cert and the macaroons of an LND node */
 export const lndPaths = (network: Network, name: string) => {

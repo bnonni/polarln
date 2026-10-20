@@ -1,6 +1,7 @@
 import {deepStrictEqual} from 'node:assert/strict';
 import {equal} from 'node:assert/strict';
 import {existsSync} from 'node:fs';
+import {readFileSync} from 'node:fs';
 import {mkdir} from 'node:fs/promises';
 import {mkdtemp} from 'node:fs/promises';
 import {readFile} from 'node:fs/promises';
@@ -202,7 +203,15 @@ test('Nodes can be removed from a stopped network', () => {
 
 test('Nodes can be renamed in a stopped network', () => {
   return withDataDir(async dataDir => {
-    const {polar} = polarDocker({dataDir});
+    // The rename looks for containers of the network, and there are none
+    const {calls, docker} = fakeDockerRunner();
+
+    const {polar} = makePolarDocker({
+      dataDir,
+      docker,
+      env: {},
+      home: join(dataDir, 'home'),
+    });
 
     await createNetwork({name: 'n', polar});
 
@@ -286,6 +295,15 @@ test('Nodes can be renamed in a stopped network', () => {
     );
 
     await assertPolarLoadable(networksFile(dataDir));
+
+    deepStrictEqual(
+      calls.map(({args}) => args.slice(0, 2)),
+      [
+        ['ps', '-a'],
+        ['ps', '-a'],
+      ],
+      'Each rename looked for containers, and no compose command ran',
+    );
   });
 });
 
@@ -424,20 +442,79 @@ test('A node with the Error status can be stopped', () => {
       'The node with the Error status stops',
     );
 
+    const compose = calls.filter(({args}) => args[0] === 'compose');
+
     deepStrictEqual(
-      calls.map(({args}) => args.slice(3)),
-      [
-        ['stop', 'alice'],
-        ['up', '-d', 'alice'],
-        ['stop', 'alice'],
-      ],
-      'Got the docker compose commands',
+      calls.map(({args}) => (args[0] === 'ps' ? 'ps' : args.slice(3))),
+      ['ps', ['stop', 'alice'], ['up', '-d', 'alice'], 'ps', ['stop', 'alice']],
+      'Got the container checks and the docker compose commands',
     );
 
     equal(
-      calls.every(({cwd}) => cwd === network.path),
+      compose.every(({cwd}) => cwd === network.path),
       true,
-      'The commands run in the network directory',
+      'The compose commands run in the network directory',
+    );
+  });
+});
+
+test('A rename stops a network with a container that runs', () => {
+  return withDataDir(async dataDir => {
+    const composeAtDown: string[] = [];
+
+    let path = '';
+
+    // The file has the Stopped status, but the container of alice runs
+    const {calls, docker} = fakeDockerRunner({
+      respond: ({args}) => {
+        if (args[0] === 'ps') {
+          return JSON.stringify([
+            'polarln-n1-alice',
+            'running',
+            'polarln-network-1',
+            path,
+          ]);
+        }
+
+        if (args[3] === 'down') {
+          composeAtDown.push(
+            readFileSync(join(path, 'docker-compose.yml'), 'utf8'),
+          );
+        }
+
+        return '';
+      },
+    });
+
+    const {polar} = makePolarDocker({
+      dataDir,
+      docker,
+      env: {},
+      home: join(dataDir, 'home'),
+    });
+
+    const {network} = await createNetwork({name: 'n', polar});
+
+    path = network.path;
+
+    await renameNode({networkId: 1, newName: 'zed', oldName: 'alice', polar});
+
+    deepStrictEqual(
+      calls.map(({args}) => (args[0] === 'ps' ? 'ps' : args.slice(3))),
+      ['ps', 'ps', ['down']],
+      'The network stopped, and it did not start again',
+    );
+
+    deepStrictEqual(
+      composeAtDown.map(file => Object.keys(JSON.parse(file).services)),
+      [['backend1', 'alice', 'bob']],
+      'The stop used the compose file with the old name',
+    );
+
+    deepStrictEqual(
+      Object.keys(await composeServices(await firstNetwork(polar))),
+      ['backend1', 'zed', 'bob'],
+      'The compose file has the new name',
     );
   });
 });
@@ -673,14 +750,9 @@ test('Node tools do not change a network that a new compose file breaks', () => 
       'The networks file and the TLS cert are there',
     );
 
+    // As in Polar, compose runs in the network folder with no -f option
     const config = {
-      args: [
-        'compose',
-        '-f',
-        join(path(3), 'docker-compose.yml'),
-        'config',
-        '--services',
-      ],
+      args: ['compose', '-p', 'polar-network-3', 'config', '--services'],
       cwd: path(3),
     };
 
@@ -742,6 +814,26 @@ test('The compose check reads a compose file of polarDocker itself', () => {
       [['config', '--services']],
       'The check ran docker compose config',
     );
+
+    // Docker compose also reads an override file, so its services count
+    await writeFile(path, JSON.stringify(json));
+
+    const override = join(network.path, 'docker-compose.override.yml');
+
+    await writeFile(override, 'services:\n  x:\n    image: x\n');
+
+    deepStrictEqual(await rejection(update()), otherServices, 'Got the error');
+
+    deepStrictEqual(
+      calls.map(({args}) => args.slice(3)),
+      [
+        ['config', '--services'],
+        ['config', '--services'],
+      ],
+      'The check ran docker compose config for the override file',
+    );
+
+    await rm(override);
 
     // A compose file with no service for a node gets the service
     await writeFile(path, JSON.stringify({...json, services}));

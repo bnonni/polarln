@@ -1,5 +1,7 @@
-// Polar v4.0.0 values for the bitcoind and LND nodes.
-// Ported from jamaljsr/polar (MIT): src/utils/constants.ts.
+// Polar v4.0.0 values for the bitcoind and LND nodes, and the volume
+// directories of all node implementations.
+// Ported from jamaljsr/polar (MIT): src/utils/constants.ts,
+// src/lib/docker/dockerService.ts (ensureDirs).
 
 import type {NodeImplementation} from '../typescript/index.js';
 
@@ -30,12 +32,11 @@ export const bitcoinCredentials = {
 /** Blocks for a Confirmed Transaction */
 export const blocksTilConfirmed = 6;
 
-/** Default Node Commands, Docker Images, and Volume Directories */
+/** Default Node Commands and Docker Images */
 export const dockerConfigs: {
   [implementation in DockerImplementation]: {
     command: string;
     imageName: string;
-    volumeDirName: string;
   };
 } = {
   bitcoind: {
@@ -61,7 +62,6 @@ export const dockerConfigs: {
       '-peerblockfilters=1',
     ].join('\n  '),
     imageName: 'polarlightning/bitcoind',
-    volumeDirName: 'bitcoind',
   },
   LND: {
     command: [
@@ -89,8 +89,27 @@ export const dockerConfigs: {
       '--accept-amp',
     ].join('\n  '),
     imageName: 'polarlightning/lnd',
-    volumeDirName: 'lnd',
   },
+};
+
+/** Volume Directory of Each Node Implementation (in <network>/volumes) */
+export const volumeDirNames: {[implementation in NodeImplementation]: string} =
+  {
+    bitcoind: 'bitcoind',
+    btcd: 'btcd',
+    'c-lightning': 'c-lightning',
+    eclair: 'eclair',
+    litd: 'litd',
+    LND: 'lnd',
+    tapd: 'tapd',
+  };
+
+/** Folders in the Volume Directory of a Node, as Polar ensureDirs Makes */
+export const volumeSubDirs: {
+  [implementation in NodeImplementation]?: string[];
+} = {
+  'c-lightning': ['lightningd', 'rest-api'],
+  litd: ['lit', 'lnd', 'tapd'],
 };
 
 /** Node Implementations of Polar, in the Polar Order */

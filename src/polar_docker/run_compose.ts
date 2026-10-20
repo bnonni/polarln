@@ -1,10 +1,11 @@
 import {stat} from 'node:fs/promises';
 import {userInfo} from 'node:os';
-import {join} from 'node:path';
 import {stripVTControlCharacters} from 'node:util';
 
 import type {Network} from '../typescript/index.js';
+import composeFiles from './compose_files.js';
 import type {DataFolder} from './data_folder.js';
+import {projectName} from './node_names.js';
 
 // docker compose: "Cannot connect to the Docker daemon at ...". docker 29:
 // "failed to connect to the docker API at ...", "permission denied while
@@ -52,6 +53,16 @@ export const composeError = (args: {
 
 /** Run a docker compose command in the directory of a network
 
+  As in Polar, the command runs in the network directory with no -f option.
+  Thus docker compose uses the compose file and the override file of the
+  directory. The network directory must have a compose file, else docker
+  compose uses a file of a parent directory.
+
+  The -p option gives the project name of the container check. Thus the
+  COMPOSE_PROJECT_NAME variable and the name in the compose file cannot
+  change the project. The COMPOSE_FILE variable cannot change the compose
+  file.
+
   On Linux, the containers get the host user and group ids, so that they can
   write the volume directories. The command runs with the docker runner of the
   data folder.
@@ -85,14 +96,33 @@ export default async ({
   const ids =
     process.platform === 'linux' ? {GROUPID: `${gid}`, USERID: `${uid}`} : {};
 
-  const file = join(network.path, 'docker-compose.yml');
+  const {
+    COMPOSE_FILE: _file,
+    COMPOSE_PROJECT_NAME: _project,
+    ...env
+  } = process.env;
+
+  const hasDir = () =>
+    stat(network.path).then(
+      stats => stats.isDirectory(),
+      () => false,
+    );
+
+  // With no compose file, docker compose uses a file of a parent directory
+  if (!composeFiles(network.path).main) {
+    const reason = (await hasDir()) ? 'has no compose file' : 'does not exist';
+
+    throw new Error(`Network directory ${network.path} ${reason}`);
+  }
+
+  const project = projectName(network, folder.prefix);
 
   try {
     const {stderr, stdout} = await folder.docker(
-      ['compose', '-f', file, ...args],
+      ['compose', '-p', project, ...args],
       {
         cwd: network.path,
-        env: {...process.env, ...ids},
+        env: {...env, ...ids},
       },
     );
 
@@ -101,14 +131,9 @@ export default async ({
       stdout: stripVTControlCharacters(stdout),
     };
   } catch (err) {
-    const hasDir = await stat(network.path).then(
-      stats => stats.isDirectory(),
-      () => false,
-    );
-
     throw composeError({
       err: err as ComposeFailure,
-      hasDir,
+      hasDir: await hasDir(),
       path: network.path,
     });
   }

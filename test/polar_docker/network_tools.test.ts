@@ -38,7 +38,15 @@ const withDataDir = async (use: (dataDir: string) => Promise<void>) => {
 
 test('A stopped network can be created, listed, renamed, and deleted', () => {
   return withDataDir(async dataDir => {
-    const {polar} = polarDocker({dataDir});
+    // The delete looks for containers of the network, and there are none
+    const {calls, docker} = fakeDockerRunner();
+
+    const {polar} = makePolarDocker({
+      dataDir,
+      docker,
+      env: {},
+      home: join(dataDir, 'home'),
+    });
 
     equal(polar.dataDir, dataDir, 'Got data directory');
 
@@ -118,6 +126,12 @@ test('A stopped network can be created, listed, renamed, and deleted', () => {
     );
 
     await assertPolarLoadable(networksFile);
+
+    deepStrictEqual(
+      calls.map(({args}) => args.slice(0, 2)),
+      [['ps', '-a']],
+      'The delete looked for containers, and no compose command ran',
+    );
   });
 });
 
@@ -323,20 +337,18 @@ test('A network stops with the docker runner of the data folder', () => {
     );
 
     deepStrictEqual(
-      calls,
+      calls.map(({args, cwd}) => ({args: args.slice(0, 2), cwd})),
       [
-        {
-          args: [
-            'compose',
-            '-f',
-            join(network.path, 'docker-compose.yml'),
-            'down',
-            '--remove-orphans',
-          ],
-          cwd: network.path,
-        },
+        {args: ['ps', '-a'], cwd: undefined},
+        {args: ['compose', '-p'], cwd: network.path},
       ],
-      'The runner gets the docker compose command',
+      'The runner gets the container check, then the docker compose command',
+    );
+
+    deepStrictEqual(
+      calls[1].args,
+      ['compose', '-p', 'polarln-network-1', 'down'],
+      'The stop runs docker compose down in the network folder, as Polar does',
     );
   });
 });

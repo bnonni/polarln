@@ -5,8 +5,12 @@ import type {LndNode} from '../typescript/index.js';
 import type {Network} from '../typescript/index.js';
 import type {PolarNode} from '../typescript/index.js';
 import type {Status} from '../typescript/index.js';
+import asError from './as_error.js';
 import * as bitcoind from './bitcoind_service.js';
+import type {DataFolder} from './data_folder.js';
 import * as lnd from './lnd_service.js';
+import {containerName} from './node_names.js';
+import projectContainers from './project_containers.js';
 import setStatus from './set_status.js';
 import {AbortWaitError} from './wait_for.js';
 import {delay} from './wait_for.js';
@@ -20,8 +24,12 @@ export type StartupServices = {
   lnd: Pick<typeof lnd, 'connectPeers' | 'getInfo' | 'waitUntilOnline'>;
 };
 
-const asError = (err: unknown) =>
-  err instanceof Error ? err : new Error(String(err));
+type SetNode = (name: string, status: Status, error?: Error) => void;
+
+// polarDocker has no startup probe for these node kinds, so the state of the
+// container gives the status
+const containerChecked = new Set(['c-lightning', 'eclair', 'litd', 'tapd']);
+
 const mineDelayMs = 2000;
 
 // Polar v4.0.0 has no Locked status, so a wallet that stays locked is an error
@@ -53,6 +61,40 @@ const connectAllPeers = async (
   }
 };
 
+// Set the status of each node from the state of its container: Started if
+// the container runs, else Error
+const setContainerStatuses = async (args: {
+  folder: DataFolder;
+  network: Network;
+  nodes: PolarNode[];
+  setNode: SetNode;
+}) => {
+  const {folder, network, nodes, setNode} = args;
+
+  let states: {[name: string]: string};
+
+  try {
+    ({states} = await projectContainers({folder, network}));
+  } catch (err) {
+    return nodes.forEach(n => setNode(n.name, 'Error', asError(err)));
+  }
+
+  nodes.forEach(node => {
+    const state = states[node.name];
+    const name = containerName(node, folder.prefix);
+
+    if (state === 'running') {
+      return setNode(node.name, 'Started');
+    }
+
+    const message = !state
+      ? `The container ${name} is not there`
+      : `The container ${name} is ${state}`;
+
+    setNode(node.name, 'Error', new Error(message));
+  });
+};
+
 /** Wait for started nodes, and set their statuses
 
   After the bitcoind nodes are online, mine 1 block. After the LND nodes are
@@ -60,19 +102,27 @@ const connectAllPeers = async (
   that does not start gets the Error status. An LND node with a wallet that
   stays locked also gets the Error status, with an error message.
 
+  polarDocker has no startup probe for tapd, litd, c-lightning, and eclair
+  nodes. After the LND nodes are online, such a node gets the Started status
+  if its container runs, else the Error status. This check is weaker than
+  the Polar check, which waits for the node RPC.
+
   {
+    folder: <Data Folder Object>
     network: <Network Object>
-    [nodes]: [<Started Node Object>] // Default: all bitcoind and LND nodes
+    [nodes]: [<Started Node Object>] // Default: all nodes
     [services]: <Node Services Object> // Default: the bitcoind and LND RPC
   }
 
   @returns via Promise
 */
 export default async ({
+  folder,
   network,
   nodes,
   services = {bitcoind, lnd},
 }: {
+  folder: DataFolder;
   network: Network;
   nodes?: PolarNode[];
   services?: StartupServices;
@@ -80,12 +130,13 @@ export default async ({
   const started = nodes || [
     ...network.nodes.bitcoin,
     ...network.nodes.lightning,
+    ...network.nodes.tap,
   ];
 
   const bitcoin = started.filter(n => n.type === 'bitcoin');
   const lndNodes = started.filter(n => n.implementation === 'LND');
 
-  const setNode = (name: string, status: Status, error?: Error) =>
+  const setNode: SetNode = (name, status, error) =>
     setStatus({error, network, only: name, status});
 
   const btcOnline = bitcoin.map(node => {
@@ -129,5 +180,11 @@ export default async ({
       network.nodes.lightning.filter(n => n.implementation === 'LND'),
       services.lnd,
     );
+  }
+
+  const others = started.filter(n => containerChecked.has(n.implementation));
+
+  if (!!others.length) {
+    await setContainerStatuses({folder, network, nodes: others, setNode});
   }
 };

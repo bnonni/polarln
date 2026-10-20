@@ -14,13 +14,14 @@ import assertComposeWritable from '../assert_compose_writable.js';
 import assertNetworkPath from '../assert_network_path.js';
 import {lndPaths} from '../create_nodes.js';
 import {nodePath} from '../create_nodes.js';
-import type {DockerImplementation} from '../docker_configs.js';
 import {saveComposeFile} from '../network_actions.js';
 import {startNetwork} from '../network_actions.js';
 import {stopNetwork} from '../network_actions.js';
 import {changeNetworks} from '../network_file.js';
 import {networkById} from '../network_file.js';
 import {renameChartNode} from '../polar_chart.js';
+import projectContainers from '../project_containers.js';
+import {isUp} from '../project_containers.js';
 import type {ToolArgs} from './types.js';
 import {validateNetworkId} from './validate.js';
 import {validateRequired} from './validate.js';
@@ -44,7 +45,7 @@ const renameNodeDir = async (
   node: PolarNode,
   name: string,
 ) => {
-  const implementation = node.implementation as DockerImplementation;
+  const {implementation} = node;
   const oldPath = nodePath(network, implementation, node.name);
 
   for (const file of tlsFiles(node)) {
@@ -81,8 +82,11 @@ const renameInNetwork = (network: Network, node: PolarNode, name: string) => {
 
 /** Rename a node
 
-  If the node runs, the network stops before the rename and starts again after
-  the rename. Polar does not wait for the start; this tool waits.
+  If a container of the network runs, the network stops before the rename,
+  so that no container of the old name stays. If the node or the network
+  was started, the network starts again after the rename. Polar stops and
+  starts the network only if the node is started, and it does not wait for
+  the start; this tool waits.
 */
 export default async ({args, folder}: ToolArgs<RenameNodeArgs>) => {
   validateNetworkId(args.networkId);
@@ -133,7 +137,7 @@ export default async ({args, folder}: ToolArgs<RenameNodeArgs>) => {
     throw new Error('polarDocker does not support tapd nodes yet');
   }
 
-  const implementation = node.implementation as DockerImplementation;
+  const {implementation} = node;
 
   // A copy of a data folder must not change the folders of the original
   assertNetworkPath({
@@ -146,10 +150,13 @@ export default async ({args, folder}: ToolArgs<RenameNodeArgs>) => {
     ],
   });
 
-  const oldName = node.name;
-  const wasStarted = node.status === 'Started';
+  const {containers} = await projectContainers({folder, network});
 
-  if (wasStarted) {
+  const oldName = node.name;
+  const wasStarted = node.status === 'Started' || network.status === 'Started';
+
+  // A container that runs uses the old compose file and the node folder
+  if (wasStarted || containers.some(c => isUp(c.state))) {
     await stopNetwork({folder, network});
   }
 

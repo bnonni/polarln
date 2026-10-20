@@ -5,6 +5,7 @@ import type {Network} from '../typescript/index.js';
 import type {PolarError} from '../typescript/index.js';
 import type {PolarNode} from '../typescript/index.js';
 import assertNetworkPath from './assert_network_path.js';
+import composeFiles from './compose_files.js';
 import type {DataFolder} from './data_folder.js';
 import runCompose from './run_compose.js';
 
@@ -37,31 +38,30 @@ const jsonServices = (text: string) => {
   }
 };
 
-// Get the services of the compose file of a network, or nothing if the
-// network has no compose file. A file that polarDocker did not write, for
-// example a Polar YAML file, goes to docker compose.
+// Get the services of the compose files of a network, or nothing if the
+// network has no compose file. Docker compose reads the files as in a start,
+// so the services of an override file are also in the list. A file that
+// polarDocker did not write, for example a Polar YAML file, and an override
+// file go to docker compose.
 const composeServices = async (args: {
   folder: DataFolder;
   network: Network;
 }) => {
-  const path = join(args.network.path, 'docker-compose.yml');
+  const {main, override} = composeFiles(args.network.path);
 
-  let text: string;
-
-  try {
-    text = await readFile(path, 'utf8');
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-      return undefined;
-    }
-
-    throw err;
+  if (!main) {
+    return undefined;
   }
 
-  const own = jsonServices(text);
+  const path = join(args.network.path, main);
 
-  if (!!own) {
-    return {path, services: own};
+  // polarDocker writes only docker-compose.yml
+  if (main === 'docker-compose.yml' && !override) {
+    const own = jsonServices(await readFile(path, 'utf8'));
+
+    if (!!own) {
+      return {path, services: own};
+    }
   }
 
   const {stdout} = await runCompose({
@@ -102,6 +102,8 @@ export const unsupportedNode = (network: Network): PolarNode | undefined =>
   A compose file that does not have a node service passes, because the new
   file adds the service. The network folder must be in the data folder. A
   compose file that polarDocker did not write goes to docker compose config.
+  The config command reads the files as in a start, so the services of an
+  override file also count.
 
   {
     folder: <Data Folder Object>

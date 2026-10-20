@@ -25,7 +25,16 @@ export type PolarDockerArgs = {
   Polar process. If the app runs, the tool gives 409 PolarAppIsRunning. If
   the check has no clear result, the tool gives 503 FailedToCheckPolarApp.
 
-  The backend supports bitcoind and LND nodes and these tools:
+  As in Polar, a start uses the compose file of the network, and a stop runs
+  docker compose down. A start writes a new compose file only if the file is
+  not there or a port moves. Thus a network with tapd, litd, c-lightning, or
+  eclair nodes, or with a service that a user added, can start and stop. The
+  tools that change the nodes need a network with only bitcoind and LND
+  nodes, and a compose file with no other services. A container of a
+  different folder with a container name or the compose project of the
+  network gives 409 ContainerNameInUse.
+
+  The backend makes only bitcoind and LND nodes. It has these tools:
   - Network tools: list_networks, create_network, start_network, stop_network,
     delete_network, and rename_network
   - Node tools: add_node, remove_node, start_node, stop_node, restart_node,

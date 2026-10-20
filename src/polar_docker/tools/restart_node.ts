@@ -1,6 +1,7 @@
 // Ported from jamaljsr/polar (MIT): src/store/models/mcp/network/restartNode.ts.
 
 import type {RestartNodeArgs} from '../../polar_methods/index.js';
+import {planStart} from '../network_actions.js';
 import {networkById} from '../network_file.js';
 import {startNode} from '../node_actions.js';
 import {stopNode} from '../node_actions.js';
@@ -15,7 +16,9 @@ const restartDelayMs = 100;
 
 /** Stop a node and start it again, and wait until the node is online
 
-  A node with the Error status only starts, as in Polar
+  A node with the Error status only starts, as in Polar. The start checks run
+  before the stop, so that a start that the checks refuse does not stop the
+  node.
 */
 export default async ({args, folder}: ToolArgs<RestartNodeArgs>) => {
   validateNetworkId(args.networkId);
@@ -33,6 +36,9 @@ export default async ({args, folder}: ToolArgs<RestartNodeArgs>) => {
   }
 
   if (node.status !== 'Error') {
+    // Check the start before the stop, so that a refusal leaves the node on
+    await planStart({folder, network, nodes: [node]});
+
     await stopNode({folder, network, node});
 
     await delay(restartDelayMs);
