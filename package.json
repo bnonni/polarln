@@ -55,6 +55,7 @@
     "check-docker": "bun scripts/check_docker.ts",
     "check-tools": "bun scripts/check_tools.ts",
     "clean": "rimraf dist coverage",
+    "write-docs": "bun scripts/write_docs.ts",
     "format": "oxfmt",
     "lint": "oxlint --type-aware --deny-warnings && oxfmt --check",
     "prepublishOnly": "pnpm lint && pnpm test && pnpm build",
