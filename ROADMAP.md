@@ -8,6 +8,7 @@ This file shows the planned work for polarln. The order can change.
 - Phase 3 (2026-10-17): the `polarln` CLI. Each Polar bridge tool is a command. The commands come from the live tool schemas. With `--backend docker` (2026-10-20), the commands come from the bundled tool schemas.
 - Release 0.1.0 (2026-10-17): polarln is on npm.
 - Release 0.2.0 (2026-10-21): the Docker backend (preview), the `auto` CLI backend, the docs in `docs/`, and the MIT License.
+- Release 0.2.1 (2026-10-21): an import of `polarln` does not load gRPC. The first tool call of `polarDocker` loads it. The import takes about 13 ms, not about 80 ms.
 - CI (2026-10-19): GitHub Actions runs lint, test, and build on each push to `main` and on each pull request.
 - Live UI test (2026-10-19): 16 tests on a Polar network with 3 LND nodes and 1 bitcoind node. The results are in the backlog item "Live network changes from the CLI". [Changes outside polarln](docs/polar-app.md#changes-outside-polarln) shows the `mine-blocks` workaround.
 - tapd live UI test (2026-10-19): 5 tests with a tapd node (Taproot Assets v0.7.0-alpha).
