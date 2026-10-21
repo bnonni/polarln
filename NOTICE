@@ -1,3 +1,9 @@
+polarln uses the MIT License (see LICENSE). It includes code from the
+projects below. Each project uses the MIT License, and its copyright
+notice and permission notice follow.
+
+---
+
 polarln includes types ported from Polar (https://github.com/jamaljsr/polar).
 These types are in src/typescript and src/polar_methods.
 src/polar_docker includes the Polar v4.0.0 network, node, compose file,

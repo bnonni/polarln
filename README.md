@@ -2,7 +2,7 @@
 
 [![npm](https://img.shields.io/npm/v/polarln)](https://www.npmjs.com/package/polarln)
 [![CI](https://github.com/bnonni/polarln/actions/workflows/ci.yml/badge.svg)](https://github.com/bnonni/polarln/actions/workflows/ci.yml)
-[![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Polar Lightning client methods, CLI, and node credentials, over the Polar v4 HTTP bridge or on Docker
 
@@ -127,4 +127,4 @@ To ask a question or to report a bug, open an issue at [github.com/bnonni/polarl
 
 ## License
 
-[Unlicense](LICENSE). The code in `src/typescript`, `src/polar_methods`, and `src/polar_docker` comes from [jamaljsr/polar](https://github.com/jamaljsr/polar) (MIT). The Polar home rule and the bridge rules in `src/polar_app`, and the tool schemas in `src/polar_cli/bundled_tools.ts`, also come from Polar. The protos in `protos/lnrpc` come from [lnd](https://github.com/lightningnetwork/lnd) (MIT). See [NOTICE](NOTICE).
+[MIT](LICENSE). Polar and lnd also use the MIT License. The code in `src/typescript`, `src/polar_methods`, and `src/polar_docker` comes from [jamaljsr/polar](https://github.com/jamaljsr/polar) (MIT). The Polar home rule and the bridge rules in `src/polar_app`, and the tool schemas in `src/polar_cli/bundled_tools.ts`, also come from Polar. The protos in `protos/lnrpc` come from [lnd](https://github.com/lightningnetwork/lnd) (MIT). See [NOTICE](NOTICE).

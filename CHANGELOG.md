@@ -6,6 +6,7 @@ The next release must be a minor release (0.2.0). It changes the CLI default and
 
 ### Changed
 
+- The license is MIT, the same license as Polar and lnd. polarln uses code from these 2 projects. Before, the license was the Unlicense. Version 0.1.0 stays under the Unlicense.
 - The usage docs moved from the README to `docs/`. The README uses the Standard Readme layout. Each CLI command has a reference page in `docs/commands/`, and `pnpm write-docs` writes the generated part of each page. See [Documentation](docs/README.md).
 - The CLI default backend is `auto`. If the Polar app runs, the CLI uses the bridge, as in 0.1.0. Else, the CLI runs the command on Docker, with the networks of the Polar app. See [Backends](docs/cli.md#backends).
 - The `Status` type has no `Locked` label, because Polar v4.0.0 has no such status. If the LND wallet stays locked, the node gets `Error` with the `errorMsg` "The LND wallet is locked".
