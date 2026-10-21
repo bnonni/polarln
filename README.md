@@ -27,7 +27,7 @@ polarln gives TypeScript methods and a `polarln` command for [Polar Lightning](h
 polarln has 2 backends:
 
 - `polarBridge` sends each tool call to the HTTP bridge of the Polar v4 app. The Polar app must run.
-- `polarDocker` (preview) runs the tools on Docker, without the Polar app. It has 30 of the 48 Polar tools: the Bitcoin and Lightning tools, and the network and node tools except `import-network-from-zip`, `export-network-to-zip`, and `set-tap-backend`.
+- `polarDocker` (preview) runs the tools on Docker, without the Polar app. It has 30 of the 48 Polar tools: the Bitcoin tools, the Lightning tools without Taproot Assets, and the network and node tools except `import-network-from-zip`, `export-network-to-zip`, and `set-tap-backend`.
 
 In code, you select the backend. The `polarln` CLI selects the backend for each command. If the Polar app answers, the CLI uses the bridge. If the Polar app does not run, the CLI runs the command on Docker, with the networks of the Polar app. On Docker, 31 of the 49 commands work, and the other commands give `501`.
 
@@ -46,7 +46,7 @@ npm install -g polarln
 npx polarln --help
 ```
 
-Version 0.1.0 on npm uses only the bridge. The Docker backend and the `auto` CLI backend are in the [Unreleased](CHANGELOG.md#unreleased) changes.
+The Docker backend and the `auto` CLI backend need polarln 0.2.0 or later. Version 0.1.0 uses only the bridge. See the [changelog](CHANGELOG.md).
 
 ### Dependencies
 

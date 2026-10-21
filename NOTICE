@@ -14,8 +14,8 @@ and the Polar chart builders (src/utils/chart.ts).
 src/polar_app includes the Polar data folder rule (src/utils/config.ts),
 the bridge port rule (electron/constants.ts), and the health answer of the
 bridge (electron/mcpBridge.ts).
-scripts/headless_spike.ts includes the Polar v4.0.0 compose templates
-and node commands.
+scripts/headless_spike.ts (in the repository, not in the npm package)
+includes the Polar v4.0.0 compose templates and node commands.
 src/polar_cli/bundled_tools.ts includes the names, descriptions, and input
 schemas of the Polar v4.0.0 MCP tools (src/store/models/mcp). The build
 copies them to dist/polar_cli.

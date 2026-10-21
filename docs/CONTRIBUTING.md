@@ -193,7 +193,7 @@ Rules for all docs:
 - The tool descriptions from the Polar schemas are quoted data. Do not change them.
 - Use relative links between the docs files.
 - Check each fact in the current code before you write it.
-- If users can see your change, update the docs in the same pull request. Also add a line to `## Unreleased` in [CHANGELOG.md](../CHANGELOG.md).
+- If users can see your change, update the docs in the same pull request. Also add a line to the `## Unreleased` section at the top of [CHANGELOG.md](../CHANGELOG.md). If the section is not there, add it.
 
 ### Generated command reference
 

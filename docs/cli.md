@@ -36,7 +36,7 @@ npx polarln list-networks
 
 In a project that has `polarln` as a dependency, `npx polarln` and `pnpm exec polarln` run the local copy.
 
-Version 0.1.0 on npm uses only the bridge. The Docker backend, the `auto` backend, and the `--backend` and `--data-dir` flags are in the [Unreleased](../CHANGELOG.md#unreleased) changes.
+The Docker backend, the `auto` backend, the `--backend` and `--data-dir` flags, and the `POLARLN_BACKEND` and `POLARLN_DATA_DIR` environment variables need polarln 0.2.0 or later. Version 0.1.0 uses only the bridge.
 
 Examples:
 

@@ -12,7 +12,7 @@ pnpm add -D polarln
 
 With npm: `npm install --save-dev polarln`.
 
-Version 0.1.0 on npm uses only the bridge. `polarDocker`, the `timeout` argument of `listTools`, and `getNodeCredentials` with `polarDocker` are in the [Unreleased](../CHANGELOG.md#unreleased) changes.
+`polarDocker`, the types `PolarBackend`, `PolarDocker`, and `PolarDockerArgs`, the `timeout` argument of `listTools`, and `getNodeCredentials` with `polarDocker` need polarln 0.2.0 or later. Version 0.1.0 uses only the bridge.
 
 Requirements:
 
@@ -96,7 +96,7 @@ polarln also has these functions. They are not Polar tools:
 - [`getNodeCredentials`](#getnodecredentials): the gRPC credentials of a node. It works with the 2 backends.
 - [`listTools`](#listtools): the tools of the Polar bridge. It works only with `polarBridge`.
 
-Each method has the types `<Method>Args` and `<Method>Result`, for example `OpenChannelArgs` and `OpenChannelResult`. `listNetworks` has only `ListNetworksResult`. The package also exports the types `PolarError`, `Network`, `PolarNode`, and `Status`.
+Each method has the types `<Method>Args` and `<Method>Result`, for example `OpenChannelArgs` and `OpenChannelResult`. `listNetworks` has only `ListNetworksResult`. The package also exports the types `PolarError`, `Network`, `PolarNode`, `Status`, `PolarBackend`, `PolarDocker`, and `PolarDockerArgs`.
 
 The 48 tool methods have no timeout of their own. The Polar bridge stops the wait for a tool after 30 s. Then the method rejects with `504 PolarToolTimedOut`. For all errors, see [Errors](errors.md).
 
