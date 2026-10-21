@@ -53,6 +53,23 @@ jobs:
       - name: Load the package in Node.js
         run: node --input-type=module -e "await import('./dist/index.js')"
 
+      # The Docker tool code loads @grpc/* at the first tool call. A resolve
+      # hook records each @grpc/* load during the import and polarDocker().
+      - name: Make sure that an import of the package does not load gRPC
+        run: |
+          node --input-type=module -e "
+          import {registerHooks} from 'node:module';
+          const loaded = [];
+          registerHooks({resolve: (spec, context, next) => {
+            if (spec.startsWith('@grpc/')) loaded.push(spec);
+            return next(spec, context);
+          }});
+          const {polarDocker} = await import('./dist/index.js');
+          polarDocker({dataDir: '/tmp/polarln-ci-no-grpc'});
+          await new Promise(resolve => setTimeout(resolve, 100));
+          if (loaded.length) throw new Error('Loaded ' + loaded.join(', '));
+          "
+
       # The docker backend help and list-networks do not need Docker.
       - name: Run the CLI with the docker backend in Node.js
         run: |
