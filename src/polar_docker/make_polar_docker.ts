@@ -4,10 +4,27 @@ import checkPolarApp from '../polar_app/check_polar_app.js';
 import {isPolarHome} from '../polar_app/polar_home.js';
 import {polarHome} from '../polar_app/polar_home.js';
 import type {PolarDocker} from '../typescript/index.js';
+import type {PolarError} from '../typescript/index.js';
 import dataFolder from './data_folder.js';
 import type {CheckApp} from './data_folder.js';
 import type {DockerRunner} from './data_folder.js';
-import executeTool from './execute_tool.js';
+import type executeTool from './execute_tool.js';
+
+/** Load the Tool Runner Module */
+export type LoadExecuteTool = () => Promise<{default: typeof executeTool}>;
+
+// The tool runner loads @grpc/grpc-js and @grpc/proto-loader. Thus it loads
+// at the first tool call, and an import of polarln stays fast.
+const loadExecuteTool: LoadExecuteTool = () => import('./execute_tool.js');
+
+// Load the tool runner, or reject with a PolarError
+const loadTool = async (load: LoadExecuteTool) => {
+  try {
+    return (await load()).default;
+  } catch (err) {
+    throw [503, 'FailedToLoadDockerBackend', {err}] satisfies PolarError;
+  }
+};
 
 /** Arguments of the Internal Docker Backend Maker */
 export type MakePolarDockerArgs = {
@@ -21,6 +38,8 @@ export type MakePolarDockerArgs = {
   env: NodeJS.ProcessEnv;
   /** Home Directory Path */
   home: string;
+  /** Load the Tool Runner Module (tests give a fake) */
+  loadExecuteTool?: LoadExecuteTool;
 };
 
 /** Make a Polar Docker backend object
@@ -41,12 +60,17 @@ export type MakePolarDockerArgs = {
   processes. The public polarDocker method has no option to turn off the
   check.
 
+  The maker does not load the tool runner. The first execute call loads it,
+  with @grpc/grpc-js. If the tool runner cannot load, execute rejects with
+  FailedToLoadDockerBackend.
+
   {
     [checkApp]: <Check if the Polar App Runs Function>
     [dataDir]: <Data Directory Path String>
     [docker]: <Run the docker Program Function>
     env: <Environment Variables Object>
     home: <Home Directory Path String>
+    [loadExecuteTool]: <Load the Tool Runner Module Function>
   }
 
   @returns
@@ -70,7 +94,11 @@ export default (args: MakePolarDockerArgs): {polar: PolarDocker} => {
   return {
     polar: {
       dataDir: folder.dataDir,
-      execute: (tool, toolArgs) => executeTool({args: toolArgs, folder, tool}),
+      execute: async (tool, toolArgs) => {
+        const run = await loadTool(args.loadExecuteTool || loadExecuteTool);
+
+        return run({args: toolArgs, folder, tool});
+      },
     },
   };
 };

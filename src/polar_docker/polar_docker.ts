@@ -43,6 +43,10 @@ export type PolarDockerArgs = {
   The Lightning tools also work on litd nodes, with the integrated lnd
   daemon, as in Polar.
 
+  polarDocker does not load the tool code. The first tool call loads it, with
+  @grpc/grpc-js. Thus an import of polarln does not load gRPC. If the tool
+  code cannot load, each tool call rejects with 503 FailedToLoadDockerBackend.
+
   The backend makes only bitcoind and LND nodes. It has these tools:
   - Network tools: list_networks, create_network, start_network, stop_network,
     delete_network, and rename_network

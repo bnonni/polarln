@@ -109,7 +109,8 @@ const preParse = (argv: string[]) => {
   return {positionals, values: values as {[flag: string]: boolean | string}};
 };
 
-// Make the Docker backend. Load its code only here: grpc-js adds about 130 ms.
+// Make the Docker backend. This import loads only the maker. The first tool
+// call loads the tool code and grpc-js (see make_polar_docker.ts).
 const dockerOf = async (args: {
   checkApp?: CheckApp;
   dataDir: string;
