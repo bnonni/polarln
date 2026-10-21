@@ -70,6 +70,8 @@ The Polar home is the data folder of the Polar app: `~/.local/share/polar` if th
 
 `polarDocker` makes the data folder an absolute path. The `polar.dataDir` value shows this path.
 
+`polarDocker` does not load the Docker tool code. The first tool call loads it, with `@grpc/grpc-js` and `@grpc/proto-loader`. Thus an import of `polarln` does not load gRPC. If the tool code cannot load, each tool call rejects with `503 FailedToLoadDockerBackend`.
+
 The Docker backend has 30 of the 48 Polar tools. The other tools reject with `501 PolarToolNotSupported`. In the Polar home, each tool that can change files or containers first checks that the Polar app does not run. For the details, see these pages:
 
 - [Docker backend](docker-backend.md): the tools, the data folder, the networks file, and the node kinds.

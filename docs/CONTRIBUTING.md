@@ -49,7 +49,7 @@ pnpm build
 - `pnpm build` compiles `src/` to `dist/`. To run the built CLI, use `node dist/cli.js <command>`.
 - To run the CLI from the source, use `bun src/cli.ts <command>`.
 
-The CI workflow (`.github/workflows/ci.yml`) starts for each pull request and for each push to `main`. It runs `pnpm lint`, `pnpm test`, and `pnpm build`. Then it loads `dist/index.js` in Node.js. It also runs `--help` and `list-networks` of the built CLI on the Docker backend, without Docker. CI does not run the Docker checks or `pnpm check-tools`.
+The CI workflow (`.github/workflows/ci.yml`) starts for each pull request and for each push to `main`. It runs `pnpm lint`, `pnpm test`, and `pnpm build`. Then it loads `dist/index.js` in Node.js and makes sure that this import and `polarDocker()` do not load `@grpc/*`. It also runs `--help` and `list-networks` of the built CLI on the Docker backend, without Docker. CI does not run the Docker checks or `pnpm check-tools`.
 
 ### Package scripts
 
@@ -83,6 +83,15 @@ Some of the code comes from [Polar](https://github.com/jamaljsr/polar) (MIT). [N
 ```
 
 If you port code from a different part of Polar, add this comment. Also add the part to NOTICE.
+
+### SDK entry imports
+
+An import of `polarln` must stay fast. Thus the modules that `src/index.ts` loads use only `node:` packages in their static imports. These rules apply:
+
+- To use a different package, load it with `import()` in a function. For example, the first tool call of `polarDocker` loads `src/polar_docker/execute_tool.ts`, and this module loads `@grpc/grpc-js`.
+- Do not put an `import()` at the top level of a module. It runs when the module loads.
+
+`test/index.test.ts` checks these rules in the source. CI also makes sure that the built package does not load `@grpc/*` at the import.
 
 ## Tests
 
@@ -169,7 +178,7 @@ More rules for a changed tool list:
 
 1. Write the tool in `src/polar_docker/tools/<tool_name>.ts`.
 2. Add the tool name to `dockerToolNames` in `src/polar_docker/docker_tool_names.ts`.
-3. Add the tool to `dockerTools` in `src/polar_docker/execute_tool.ts`.
+3. Add the tool to `dockerTools` in `src/polar_docker/execute_tool.ts`. Do not import the tool in a module that `src/index.ts` loads. See [SDK entry imports](#sdk-entry-imports).
 4. If the tool does not change files or containers, add its name to `readToolNames`. Each other tool gets the [Polar app check](polar-app.md#polar-app-check).
 5. Run `pnpm write-docs`. The command page then shows the Docker support. Also update the tool lists in [docker-backend.md](docker-backend.md).
 

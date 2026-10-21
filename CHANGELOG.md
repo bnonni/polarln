@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- An import of `polarln` does not load `@grpc/grpc-js` and `@grpc/proto-loader`. The first tool call of a `polarDocker` object loads them. With Node.js 24, the import takes about 13 ms. In 0.2.0, it took about 80 ms, also if you used only `polarBridge`.
+- If the Docker tool code cannot load, for example because `@grpc/grpc-js` is not installed, each tool call of a `polarDocker` object rejects with `503 FailedToLoadDockerBackend`. In 0.2.0, the import of `polarln` failed.
+
 ## 0.2.0 (2026-10-21)
 
 This minor release changes the CLI default, the `Status` type, and the type of the `polar` argument of 0.1.0. See "Changed".
